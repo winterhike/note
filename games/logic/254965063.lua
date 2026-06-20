@@ -308,24 +308,10 @@ local function buildElement(bnSection, el, secName)
                 end)
             end
         end
-        -- chained keybind (toggles the feature with a hotkey)
-        if el.keybind and bnToggle.Keybind then
-            pcall(function()
-                local data = {
-                    Name = elName(el),
-                    Flag = mkFlag("wpk", secName, elName(el)),
-                    Mode = "Toggle",
-                    Callback = function()
-                        local nv = not el.value
-                        pcall(function() el:SetValue(nv) end)
-                        pcall(function() bnToggle:Set(nv) end)
-                    end,
-                }
-                local def = toKeyCode(el.keybind.value)
-                if def then data.Default = def end
-                bnToggle:Keybind(data)
-            end)
-        end
+        -- NOTE: we deliberately do NOT chain wapus' menu-hotkey keybinds here.
+        -- banknote fires a keybind's callback at build time, which flipped the
+        -- just-reset toggle back ON (re-enabling the whole preset). Features are
+        -- controlled via the toggle itself instead.
     elseif t == "slider" then
         bnSection:Slider({
             Name = elName(el),
