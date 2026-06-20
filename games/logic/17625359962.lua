@@ -11869,6 +11869,13 @@ end
 
 runsvc:BindToRenderStep("vfr_csync", Enum.RenderPriority.First.Value, function()
     if not vfrSnap.cf then return end
+    -- $$ banknote $$ safety: only force the CFrame while void/ragebot is actually
+    -- active. Otherwise clear the stale snap so a leftover saved position can't
+    -- freeze or teleport the character every frame.
+    if not (config.voidspam.enabled or config.state.csyncactive) then
+        vfrSnap.cf, vfrSnap.lv, vfrSnap.av = nil, nil, nil
+        return
+    end
     local hrp = voidHrp()
     if not hrp then return end
     pcall(function()
@@ -15260,6 +15267,16 @@ local function flushAntiAimMovementState()
     if hrp then
         pcall(function()
             hrp.AssemblyAngularVelocity = Vector3.zero
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            -- $$ banknote $$: un-tilt the character (anti-aim leaves accumulated
+            -- pitch/roll which makes you appear taller / shifts your hitbox)
+            local pos = hrp.Position
+            local look = hrp.CFrame.LookVector
+            local flat = Vector3.new(look.X, 0, look.Z)
+            if flat.Magnitude < 1e-3 then
+                flat = Vector3.new(0, 0, -1)
+            end
+            hrp.CFrame = CFrame.lookAt(pos, pos + flat.Unit)
         end)
     end
 end
