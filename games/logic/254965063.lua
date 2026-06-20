@@ -111,6 +111,15 @@ do
             warn("[banknote/PF] wapus.lua COMPILE error:", compileErr)
         else
             log("wapus.lua compiled - executing ...")
+            -- wipe wapus' saved preset BEFORE it loads so no preset is applied
+            -- (it auto-loads Phantom Forces/cache/lastfile.json on init).
+            pcall(function()
+                local p = "Phantom Forces/cache/lastfile.json"
+                if isfile and isfile(p) then
+                    writefile(p, "{}")
+                    log("cleared saved preset (lastfile.json)")
+                end
+            end)
             local okRun, runErr = pcall(fn)
             if not okRun then
                 warn("[banknote/PF] wapus.lua RUNTIME error:", runErr)
