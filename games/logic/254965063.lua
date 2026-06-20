@@ -137,12 +137,18 @@ local window = BN:Window({ Name = "$$ banknote: Phantom Forces $$" })
 pcall(function() window:Watermark({ Name = "$$ banknote $$" }) end)
 pcall(function() window:KeybindList() end)
 
-local function buildElement(bnSection, el)
+-- flags must be globally unique (wapus reuses element names like "Enabled",
+-- "Use FOV", "FOV Radius" across many sections); key by section + name.
+local function mkFlag(prefix, prefix2, name)
+    return (prefix .. "_" .. prefix2 .. "_" .. name):gsub("%s+", "_")
+end
+
+local function buildElement(bnSection, el, secName)
     local t = el.type
     if t == "toggle" then
         local bnToggle = bnSection:Toggle({
             Name = elName(el),
-            Flag = "wp_" .. elName(el),
+            Flag = mkFlag("wp", secName, elName(el)),
             Default = el.value and true or false,
             Callback = function(v) pcall(function() el:SetValue(v and true or false) end) end,
         })
@@ -152,7 +158,7 @@ local function buildElement(bnSection, el)
                 pcall(function()
                     bnToggle:Colorpicker({
                         Name = color.name or "Color",
-                        Flag = "wp_" .. (color.name or elName(el) .. "_color"),
+                        Flag = mkFlag("wpc", secName, color.name or (elName(el) .. "_color")),
                         Default = (typeof(color.value) == "Color3") and color.value or Color3.fromRGB(255, 255, 255),
                         Callback = function(c) pcall(function() color:SetValue(c) end) end,
                     })
@@ -164,7 +170,7 @@ local function buildElement(bnSection, el)
             pcall(function()
                 local data = {
                     Name = elName(el),
-                    Flag = "wpk_" .. elName(el),
+                    Flag = mkFlag("wpk", secName, elName(el)),
                     Mode = "Toggle",
                     Callback = function()
                         local nv = not el.value
@@ -180,7 +186,7 @@ local function buildElement(bnSection, el)
     elseif t == "slider" then
         bnSection:Slider({
             Name = elName(el),
-            Flag = "wp_" .. elName(el),
+            Flag = mkFlag("wp", secName, elName(el)),
             Min = el.min or 0,
             Max = el.max or 100,
             Default = el.value or el.default or el.min or 0,
@@ -193,7 +199,7 @@ local function buildElement(bnSection, el)
         if type(items) ~= "table" or #items == 0 then items = { el.value or "None" } end
         bnSection:Dropdown({
             Name = elName(el),
-            Flag = "wp_" .. elName(el),
+            Flag = mkFlag("wp", secName, elName(el)),
             Items = items,
             Default = el.value,
             Multi = false,
@@ -202,7 +208,7 @@ local function buildElement(bnSection, el)
     elseif t == "textbox" then
         bnSection:Textbox({
             Name = elName(el),
-            Flag = "wp_" .. elName(el),
+            Flag = mkFlag("wp", secName, elName(el)),
             Default = tostring(el.value or ""),
             Callback = function(v) pcall(function() el:SetValue(v) end) end,
         })
@@ -216,13 +222,14 @@ end
 
 local function buildSection(page, sec, side)
     if not sec or not sec.elements or #sec.elements == 0 then return end
+    local secName = sec.name or "Section"
     local bnSection
     local ok = pcall(function()
-        bnSection = page:Section({ Name = sec.name or "Section", Side = side })
+        bnSection = page:Section({ Name = secName, Side = side })
     end)
     if not ok or not bnSection then return end
     for _, el in ipairs(sec.elements) do
-        pcall(buildElement, bnSection, el)
+        pcall(buildElement, bnSection, el, secName)
     end
 end
 
