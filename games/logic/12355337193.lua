@@ -13,7 +13,10 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 local flags = function()
-    return getgenv().BanknoteFlags or {}
+    if not getgenv().BanknoteFlags then
+        getgenv().BanknoteFlags = {}
+    end
+    return getgenv().BanknoteFlags
 end
 
 -- FOV Circle (Drawing API)
@@ -26,10 +29,10 @@ Circle.Visible = false
 
 local function UpdateCircle()
     local f = flags()
-    local enabled = f["SilentAim"] and f["ShowFOVCircle"]
-    Circle.Visible = enabled and true or false
+    local visible = f["ShowFOVCircle"] == true
+    Circle.Visible = visible
 
-    if enabled then
+    if visible then
         Circle.Radius = f["SilentFOV"] or 200
         Circle.Position = GetMouse(UserInputService)
         Circle.Color = f["FOVCircleColor"] or Color3.new(1, 1, 1)
