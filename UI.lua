@@ -4,11 +4,9 @@
     This file is loaded by loader.lua and receives game-specific features.
 ]]
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/sametexe001/juanitahaxx/refs/heads/main/Library.lua"))()
-
 local UI = {}
 
-function UI:Build(Config)
+function UI:Build(Config, Library)
     local Window = Library:Window({Name = "$$ banknote $$"})
     local Watermark = Window:Watermark({Name = "$$ banknote $$"})
     local KeybindList = Window:KeybindList()
