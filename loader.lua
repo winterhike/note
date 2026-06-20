@@ -4,9 +4,8 @@
     Caches files locally in the workspace folder "banknote" to avoid re-downloading.
 ]]
 
-local VERSION = "1.0.1"
+local VERSION = "1.0.2"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
-local LIBRARY_URL = "https://raw.githubusercontent.com/sametexe001/juanitahaxx/refs/heads/main/Library.lua"
 local CACHE_FOLDER = "banknote"
 
 -- Utility: ensure cache folder exists
@@ -54,7 +53,7 @@ local function cachedGet(url, localPath)
 end
 
 -- Load the UI library (cached)
-local librarySource = cachedGet(LIBRARY_URL, "Library.lua")
+local librarySource = cachedGet(BASE_URL .. "library/Library.lua", "Library.lua")
 local Library = loadstring(librarySource)()
 
 -- Load the UI builder (cached)
