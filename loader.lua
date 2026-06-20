@@ -39,6 +39,8 @@ local UI = loadstring(uiSource)()
 local PlaceId = tostring(game.PlaceId)
 local GameConfig = nil
 
+local isUniversal = false
+
 local success, result = pcall(function()
     local source = cachedGet(BASE_URL .. "games/" .. PlaceId .. ".lua", "games/" .. PlaceId .. ".lua")
     return loadstring(source)()
@@ -49,6 +51,7 @@ if success and result then
     print("[$$ banknote $$] Loaded config for PlaceId: " .. PlaceId)
 else
     print("[$$ banknote $$] No config found for PlaceId: " .. PlaceId .. " - loading universal features only")
+    isUniversal = true
     local fallbackSuccess, fallbackResult = pcall(function()
         local source = cachedGet(BASE_URL .. "games/universal.lua", "games/universal.lua")
         return loadstring(source)()
@@ -59,14 +62,16 @@ else
     end
 end
 
--- Get the place name from MarketplaceService
-local placeName = "Unknown"
-local mps = game:GetService("MarketplaceService")
-local nameSuccess, nameResult = pcall(function()
-    return mps:GetProductInfo(game.PlaceId).Name
-end)
-if nameSuccess and nameResult then
-    placeName = nameResult
+-- Get the place name
+local placeName = "Universal"
+if not isUniversal then
+    local mps = game:GetService("MarketplaceService")
+    local nameSuccess, nameResult = pcall(function()
+        return mps:GetProductInfo(game.PlaceId).Name
+    end)
+    if nameSuccess and nameResult then
+        placeName = nameResult
+    end
 end
 
 -- Build the UI with the loaded config
