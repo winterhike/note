@@ -4676,7 +4676,7 @@ return Library]==]
 end
 
 -- $$ banknote $$: route Instance UI through the banknote compatibility shim
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/games/logic/shim.lua"))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/games/logic/shim.lua?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6))))()
 
 local INSTANCE_ACCENT = Color3.fromRGB(0, 200, 255)
 local INSTANCE_BROWN_ACCENTS = {

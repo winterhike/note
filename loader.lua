@@ -117,12 +117,17 @@ if not isUniversal then
     end
 end
 
+-- Cache-buster so GitHub's raw CDN always serves the freshest logic
+local function bust()
+    return "?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6))
+end
+
 -- If the game has a full logic script, let it build the whole UI itself.
 -- Otherwise build the generic config-driven UI, then load addon logic if available.
 if hasFullLogic then
     print("[$$ banknote $$] Running full logic for PlaceId: " .. PlaceId)
     local logicSuccess, logicErr = pcall(function()
-        local logicSource = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua")
+        local logicSource = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua" .. bust())
         loadstring(logicSource)()
     end)
     if not logicSuccess then
@@ -132,7 +137,7 @@ elseif GameConfig then
     UI:Build(GameConfig, Library, placeName)
     if hasAddonLogic then
         local logicSuccess, logicErr = pcall(function()
-            local logicSource = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua")
+            local logicSource = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua" .. bust())
             loadstring(logicSource)()
         end)
         if logicSuccess then
