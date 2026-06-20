@@ -4,7 +4,7 @@
     Caches files locally in the workspace folder "banknote" to avoid re-downloading.
 ]]
 
-local VERSION = "1.1.0"
+local VERSION = "1.1.1"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 
@@ -119,8 +119,9 @@ if hasLogic then
         loadstring(logicSource)()
     end)
     if not logicSuccess then
+        -- The logic builds its own UI; do NOT fall back to the generic UI
+        -- (that would create a second window). Just report the error.
         warn("[$$ banknote $$] Logic error: " .. tostring(logicErr))
-        if GameConfig then UI:Build(GameConfig, Library, placeName) end
     end
 elseif GameConfig then
     UI:Build(GameConfig, Library, placeName)

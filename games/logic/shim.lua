@@ -138,37 +138,28 @@ return (function()
         return obj
     end
 
+    -- Keybinds use the banknote library's NATIVE Keybind (Toggle/Hold/Always,
+    -- shows in the keybind list). We keep a registry to sync Mode/state back
+    -- into the Options[idx] objects the Instance logic reads.
     local keyPickers = {}
-    local function parseKey(key)
-        if not key or key == "None" or key == "" then return nil end
-        local s = tostring(key):gsub("Enum%.KeyCode%.", ""):gsub("Enum%.UserInputType%.", "")
+    local function toKeyCode(v)
+        if v == nil then return nil end
+        if typeof(v) == "EnumItem" then return v end
+        local s = tostring(v):gsub("Enum%.KeyCode%.", ""):gsub("Enum%.UserInputType%.", "")
+        if s == "None" or s == "" or s == "none" then return nil end
         if Enum.KeyCode[s] then return Enum.KeyCode[s] end
         if Enum.UserInputType[s] then return Enum.UserInputType[s] end
         return nil
     end
-    UIS.InputBegan:Connect(function(input)
+    RunService.Heartbeat:Connect(function()
+        local flags = BN.Flags
+        if not flags then return end
         for _, kp in ipairs(keyPickers) do
-            local k = parseKey(kp.Value)
-            if k and (input.KeyCode == k or input.UserInputType == k) then
-                if kp.Mode == "Toggle" then
-                    kp._state = not kp._state
-                    if kp.Callback then pcall(kp.Callback, kp._state) end
-                    for _, fn in ipairs(kp._changed) do pcall(fn, kp._state) end
-                elseif kp.Mode == "Hold" then
-                    kp._state = true
-                    if kp.Callback then pcall(kp.Callback, true) end
-                end
-            end
-        end
-    end)
-    UIS.InputEnded:Connect(function(input)
-        for _, kp in ipairs(keyPickers) do
-            local k = parseKey(kp.Value)
-            if k and (input.KeyCode == k or input.UserInputType == k) then
-                if kp.Mode == "Hold" then
-                    kp._state = false
-                    if kp.Callback then pcall(kp.Callback, false) end
-                end
+            local f = flags[kp._flag]
+            if type(f) == "table" then
+                kp.Mode = f.Mode or kp.Mode
+                kp._state = f.Toggled and true or false
+                if f.Key then kp.Value = tostring(f.Key) end
             end
         end
     end)
@@ -189,9 +180,41 @@ return (function()
         info = info or {}
         local obj = makeObj("KeyPicker", idx, info.Default or "None", info.Callback)
         obj.Mode = info.Mode or "Toggle"; obj.Modes = info.Modes; obj._state = false
-        function obj:GetState() return self._state end
-        function obj:Set(k) self.Value = tostring(k) end
-        Options[idx] = obj; table.insert(keyPickers, obj)
+        obj._flag = "bnkey_" .. tostring(idx)
+        function obj:GetState()
+            local f = BN.Flags and BN.Flags[self._flag]
+            if type(f) == "table" then
+                self.Mode = f.Mode or self.Mode
+                self._state = f.Toggled and true or false
+            end
+            return self._state
+        end
+        Options[idx] = obj
+        table.insert(keyPickers, obj)
+        local bn = section.__cur
+        if bn and bn.Keybind then
+            local data = {
+                Name = info.Text or info.Title or tostring(idx),
+                Flag = obj._flag,
+                Mode = obj.Mode,
+                Callback = function(toggled)
+                    obj._state = toggled and true or false
+                    local f = BN.Flags and BN.Flags[obj._flag]
+                    if type(f) == "table" then
+                        if f.Mode then obj.Mode = f.Mode end
+                        if f.Key then obj.Value = tostring(f.Key) end
+                    end
+                    if obj.Callback then pcall(obj.Callback, obj._state) end
+                    for _, fn in ipairs(obj._changed) do pcall(fn, obj._state) end
+                end,
+            }
+            local default = toKeyCode(info.Default)
+            if default then data.Default = default end
+            obj._bn = bn:Keybind(data)
+        end
+        function obj:Set(k)
+            if obj._bn and obj._bn.Set then pcall(function() obj._bn:Set(k) end) end
+        end
         return parentObj
     end
     local function wrapElement(section, baseObj)
@@ -282,12 +305,13 @@ return (function()
         return sec
     end
 
-    local function makeTabbox(bnSection)
+    -- Tabbox: juanitahaxx has no nested tabs, so each "tab" becomes its own
+    -- clean section named after the tab (on the same side).
+    local function makeTabbox(bnPage, side)
         local tb = {}
         function tb:AddTab(name)
-            local s = makeSection(bnSection)
-            bnSection:Label({ Name = "— " .. tostring(name) .. " —" })
-            return s
+            local bnSec = bnPage:Section({ Name = tostring(name), Side = side })
+            return makeSection(bnSec)
         end
         return tb
     end
@@ -303,12 +327,30 @@ return (function()
         function tab:AddRightGroupbox(name) return tab:AddGroupbox({ Side = 2, Name = name }) end
         function tab:AddTabbox(info)
             local side = (info and info.Side) or 1
-            local bnSec = bnPage:Section({ Name = (info and info.Name) or "tabs", Side = side })
-            return makeTabbox(bnSec)
+            return makeTabbox(bnPage, side)
         end
         function tab:AddLeftTabbox(name) return tab:AddTabbox({ Side = 1, Name = name }) end
         function tab:AddRightTabbox(name) return tab:AddTabbox({ Side = 2, Name = name }) end
         return tab
+    end
+
+    -- Dummy (no-op) chain for the Instance "settings" tab — the banknote
+    -- library auto-builds its own settings page on Init, so we discard
+    -- Instance's duplicate settings UI while keeping its code error-free.
+    local function makeDummyChain()
+        local d = {}
+        setmetatable(d, { __index = function() return function() return d end end })
+        return d
+    end
+    local function makeDummySection()
+        local s = {}
+        setmetatable(s, { __index = function() return function() return makeDummyChain() end end })
+        return s
+    end
+    local function makeDummyTab()
+        local t = {}
+        setmetatable(t, { __index = function() return function() return makeDummySection() end end })
+        return t
     end
 
     function Lib:CreateWindow(config)
@@ -319,6 +361,12 @@ return (function()
         pcall(function() bnWindow:KeybindList() end)
         local Window = { Tabs = {}, Holder = nil, TabPadding = config.TabPadding or 6 }
         function Window:AddTab(name)
+            -- skip Instance's settings tab (banknote provides its own)
+            if tostring(name):lower() == "settings" then
+                local dummy = makeDummyTab()
+                Window.Tabs[name] = dummy
+                return dummy
+            end
             local bnPage = bnWindow:Page({ Name = name })
             local tab = makeTab(bnPage)
             Window.Tabs[name] = tab
