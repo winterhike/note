@@ -8206,6 +8206,10 @@ local TweenService = game:GetService("TweenService")
 
 local fonts = {}
 fonts.main = getgenv().InstanceUIFont or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black)
+-- $$ banknote $$: ensure fonts.main is a Font object (FontFace can't take an EnumItem)
+if typeof(fonts.main) ~= "Font" then
+    fonts.main = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black)
+end
 
 local hitEffectsTab = HitGroup:AddTab('hit effects')
 
@@ -8377,7 +8381,7 @@ local function spawnHitFlash(targetPart, color, brightness, range, duration)
 end
 
 local function spawnHitEmitter(targetPart, config)
-    if getActiveParticles() >= MAX_ACTIVE_PARTICLES then
+    if getActiveParticles and MAX_ACTIVE_PARTICLES and getActiveParticles() >= MAX_ACTIVE_PARTICLES then
         return nil
     end
 
