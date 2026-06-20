@@ -118,9 +118,44 @@ return (function()
     function Lib:GiveSignal(s) table.insert(Lib.Signals, s) end
     function Lib:OnUnload(cb) Lib.OnUnloadCb = cb end
     function Lib:Unload()
-        for i = #Lib.Signals, 1, -1 do local c = table.remove(Lib.Signals, i) pcall(function() c:Disconnect() end) end
+        -- 1. turn every feature OFF via its own disable logic (stops loops + teardown)
+        for _, obj in pairs(Toggles) do
+            if type(obj) == "table" and obj.Value then
+                obj.Value = false
+                pcall(function() if obj.Callback then obj.Callback(false) end end)
+            end
+        end
+        -- 2. run Instance's registered unload callback
         if Lib.OnUnloadCb then pcall(Lib.OnUnloadCb) end
-        Lib.Unloaded = true; pcall(function() ScreenGui:Destroy() end)
+        -- 3. disconnect shim signals
+        for i = #Lib.Signals, 1, -1 do local c = table.remove(Lib.Signals, i) pcall(function() c:Disconnect() end) end
+        -- 4. wipe all Drawing objects (ESP, tracers, FOV, crosshair, rage indicators)
+        pcall(function() if cleardrawcache then cleardrawcache() end end)
+        -- 5. destroy GUIs / folders created by the script
+        local parents = { ScreenGui.Parent, game:GetService("CoreGui") }
+        if gethui then pcall(function() table.insert(parents, gethui()) end) end
+        local killNames = {
+            FOVScreenGui = true, ESP = true, instance_keybind_list = true,
+            BanknoteFOV = true, MouseCircle = true,
+            ["\0banknote_shim"] = true, ["\0ChamOutlines"] = true, ["\0SmoothTexSA"] = true,
+        }
+        for _, parent in ipairs(parents) do
+            if parent then
+                for _, child in ipairs(parent:GetChildren()) do
+                    if killNames[child.Name] then pcall(function() child:Destroy() end) end
+                end
+            end
+        end
+        -- 6. destroy leftover highlights (chams / esp / viewmodel)
+        for _, root in ipairs({ game:GetService("CoreGui"), workspace }) do
+            for _, d in ipairs(root:GetDescendants()) do
+                if d:IsA("Highlight") and (d.Name == "ESPHighlight" or d.Name == "ChamOutline" or d.Name == "InstanceVmPartHighlight") then
+                    pcall(function() d:Destroy() end)
+                end
+            end
+        end
+        Lib.Unloaded = true
+        pcall(function() ScreenGui:Destroy() end)
     end
     function Lib:UpdateDependencyBoxes()
         for _, dep in next, Lib.DependencyBoxes do if dep.Update then pcall(function() dep:Update() end) end end
@@ -385,6 +420,17 @@ return (function()
         end
         task.defer(function() pcall(function() bnWindow:Init() end) end)
         return Window
+    end
+
+    -- Hook the banknote Exit button so it fully cleans up Instance visuals too
+    do
+        local realExit = BN.Exit
+        if realExit then
+            BN.Exit = function(self, ...)
+                pcall(function() Lib:Unload() end)
+                return realExit(self, ...)
+            end
+        end
     end
 
     return Lib
