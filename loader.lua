@@ -4,6 +4,7 @@
     Caches files locally in the workspace folder "banknote" to avoid re-downloading.
 ]]
 
+local VERSION = "1.0.1"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 local LIBRARY_URL = "https://raw.githubusercontent.com/sametexe001/juanitahaxx/refs/heads/main/Library.lua"
 local CACHE_FOLDER = "banknote"
@@ -16,6 +17,29 @@ if not isfolder(CACHE_FOLDER .. "/games") then
     makefolder(CACHE_FOLDER .. "/games")
 end
 
+-- Version check: clear cache if version changed
+local versionFile = CACHE_FOLDER .. "/version.txt"
+if isfile(versionFile) then
+    if readfile(versionFile) ~= VERSION then
+        -- Clear cache on version change
+        for _, file in pairs(listfiles(CACHE_FOLDER)) do
+            if isfile(file) then
+                delfile(file)
+            end
+        end
+        if isfolder(CACHE_FOLDER .. "/games") then
+            for _, file in pairs(listfiles(CACHE_FOLDER .. "/games")) do
+                if isfile(file) then
+                    delfile(file)
+                end
+            end
+        end
+    end
+else
+    -- First run or missing version file
+end
+writefile(versionFile, VERSION)
+
 -- Utility: fetch a file with local caching
 local function cachedGet(url, localPath)
     local fullPath = CACHE_FOLDER .. "/" .. localPath
@@ -23,7 +47,9 @@ local function cachedGet(url, localPath)
         return readfile(fullPath)
     end
     local content = game:HttpGet(url)
-    writefile(fullPath, content)
+    if content and #content > 0 and not content:find("404: Not Found") then
+        writefile(fullPath, content)
+    end
     return content
 end
 
@@ -38,7 +64,6 @@ local UI = loadstring(uiSource)()
 -- Try to load the game-specific config based on PlaceId
 local PlaceId = tostring(game.PlaceId)
 local GameConfig = nil
-
 local isUniversal = false
 
 local success, result = pcall(function()
