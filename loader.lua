@@ -1,45 +1,44 @@
 --[[
     Loader - $$ banknote $$
-    Automatically detects the current PlaceId and loads the matching game config.
-    Caches files locally in the workspace folder "banknote" to avoid re-downloading.
+    Detects the current game (by PlaceId, falling back to UniverseId for games
+    with per-match sub-places like Rivals) and loads the matching config/logic.
+    Caches files locally in the workspace folder "banknote".
 ]]
 
-local VERSION = "1.1.4"
+local VERSION = "1.2.0"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 
--- Utility: ensure cache folder exists
-if not isfolder(CACHE_FOLDER) then
-    makefolder(CACHE_FOLDER)
+-- Universe (GameId) -> canonical config/logic id, for games whose matches run
+-- on different PlaceIds within the same universe.
+local UNIVERSE_MAP = {
+    ["6035872082"] = "17625359962", -- Rivals (all match sub-places)
+}
+
+-- Cache-buster so GitHub's raw CDN always serves the freshest files
+local function bust()
+    return "?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6))
 end
-if not isfolder(CACHE_FOLDER .. "/games") then
-    makefolder(CACHE_FOLDER .. "/games")
-end
+
+-- Ensure cache folders exist
+if not isfolder(CACHE_FOLDER) then makefolder(CACHE_FOLDER) end
+if not isfolder(CACHE_FOLDER .. "/games") then makefolder(CACHE_FOLDER .. "/games") end
 
 -- Version check: clear cache if version changed
 local versionFile = CACHE_FOLDER .. "/version.txt"
-if isfile(versionFile) then
-    if readfile(versionFile) ~= VERSION then
-        -- Clear cache on version change
-        for _, file in pairs(listfiles(CACHE_FOLDER)) do
-            if isfile(file) then
-                delfile(file)
-            end
-        end
-        if isfolder(CACHE_FOLDER .. "/games") then
-            for _, file in pairs(listfiles(CACHE_FOLDER .. "/games")) do
-                if isfile(file) then
-                    delfile(file)
-                end
-            end
+if isfile(versionFile) and readfile(versionFile) ~= VERSION then
+    for _, file in pairs(listfiles(CACHE_FOLDER)) do
+        if isfile(file) then delfile(file) end
+    end
+    if isfolder(CACHE_FOLDER .. "/games") then
+        for _, file in pairs(listfiles(CACHE_FOLDER .. "/games")) do
+            if isfile(file) then delfile(file) end
         end
     end
-else
-    -- First run or missing version file
 end
 writefile(versionFile, VERSION)
 
--- Utility: fetch a file with local caching
+-- Fetch with local caching (version-keyed)
 local function cachedGet(url, localPath)
     local fullPath = CACHE_FOLDER .. "/" .. localPath
     if isfile(fullPath) then
@@ -52,26 +51,35 @@ local function cachedGet(url, localPath)
     return content
 end
 
--- Load the UI library (cached)
-local librarySource = cachedGet(BASE_URL .. "library/Library.lua", "Library.lua")
-local Library = loadstring(librarySource)()
+-- Fresh fetch (no cache); returns ok, content
+local function freshGet(url)
+    local content = game:HttpGet(url .. bust())
+    local ok = content and #content > 0 and not content:find("404: Not Found")
+    return ok, content
+end
 
--- Expose the banknote library globally so game-logic shims can build their own UI
+-- Load the UI library + builder (cached)
+local Library = loadstring(cachedGet(BASE_URL .. "library/Library.lua", "Library.lua"))()
 getgenv().BanknoteLibrary = Library
+local UI = loadstring(cachedGet(BASE_URL .. "UI.lua", "UI.lua"))()
 
--- Load the UI builder (cached)
-local uiSource = cachedGet(BASE_URL .. "UI.lua", "UI.lua")
-local UI = loadstring(uiSource)()
-
--- Check whether this game ships a FULL logic script (builds its own UI via shim)
+-- Resolve which id to use: prefer an exact PlaceId config, else the universe map
 local PlaceId = tostring(game.PlaceId)
-local hasFullLogic = false -- only Rivals-style scripts that build their own window
-local hasAddonLogic = false -- lightweight logic scripts that just hook game mechanics
+local GameId = tostring(game.GameId)
+local effectiveId = PlaceId
 
+local placeConfigOk = freshGet(BASE_URL .. "games/" .. PlaceId .. ".lua")
+if not placeConfigOk and UNIVERSE_MAP[GameId] then
+    effectiveId = UNIVERSE_MAP[GameId]
+    print("[$$ banknote $$] Matched by universe " .. GameId .. " -> " .. effectiveId)
+end
+
+-- Detect whether this game ships a logic script and what kind
+local hasFullLogic = false   -- builds its own UI via the shim (Rivals-style)
+local hasAddonLogic = false  -- just hooks mechanics (MVSD-style)
 do
-    local probe = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua")
-    if probe and #probe > 0 and not probe:find("404: Not Found") then
-        -- If the logic file loads the shim (builds its own UI), it's full logic
+    local ok, probe = freshGet(BASE_URL .. "games/logic/" .. effectiveId .. ".lua")
+    if ok then
         if probe:find("shim.lua", 1, true) or probe:find("BanknoteLibrary", 1, true) then
             hasFullLogic = true
         else
@@ -80,55 +88,41 @@ do
     end
 end
 
--- Try to load the game-specific config based on PlaceId
+-- Load the game-specific config (or universal fallback)
 local GameConfig = nil
 local isUniversal = false
-
 local success, result = pcall(function()
-    local source = cachedGet(BASE_URL .. "games/" .. PlaceId .. ".lua", "games/" .. PlaceId .. ".lua")
-    return loadstring(source)()
+    return loadstring(cachedGet(BASE_URL .. "games/" .. effectiveId .. ".lua", "games/" .. effectiveId .. ".lua"))()
 end)
 
 if success and result then
     GameConfig = result
-    print("[$$ banknote $$] Loaded config for PlaceId: " .. PlaceId)
+    print("[$$ banknote $$] Loaded config for id: " .. effectiveId)
 else
-    print("[$$ banknote $$] No config found for PlaceId: " .. PlaceId .. " - loading universal features only")
     isUniversal = true
-    local fallbackSuccess, fallbackResult = pcall(function()
-        local source = cachedGet(BASE_URL .. "games/universal.lua", "games/universal.lua")
-        return loadstring(source)()
+    print("[$$ banknote $$] No config for " .. effectiveId .. " - loading universal")
+    local fbOk, fbResult = pcall(function()
+        return loadstring(cachedGet(BASE_URL .. "games/universal.lua", "games/universal.lua"))()
     end)
-    if fallbackSuccess and fallbackResult then
-        GameConfig = fallbackResult
-        print("[$$ banknote $$] Loaded universal config")
-    end
+    if fbOk and fbResult then GameConfig = fbResult end
 end
 
--- Get the place name
+-- Resolve the place name for the window title
 local placeName = "Universal"
 if not isUniversal then
     local mps = game:GetService("MarketplaceService")
-    local nameSuccess, nameResult = pcall(function()
+    local nameOk, nameResult = pcall(function()
         return mps:GetProductInfo(game.PlaceId).Name
     end)
-    if nameSuccess and nameResult then
-        placeName = nameResult
-    end
+    if nameOk and nameResult then placeName = nameResult end
 end
 
--- Cache-buster so GitHub's raw CDN always serves the freshest logic
-local function bust()
-    return "?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6))
-end
-
--- If the game has a full logic script, let it build the whole UI itself.
--- Otherwise build the generic config-driven UI, then load addon logic if available.
+-- Full logic builds its own UI; addon logic loads after the config-driven UI
 if hasFullLogic then
-    print("[$$ banknote $$] Running full logic for PlaceId: " .. PlaceId)
+    print("[$$ banknote $$] Running full logic for id: " .. effectiveId)
     local logicSuccess, logicErr = pcall(function()
-        local logicSource = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua" .. bust())
-        loadstring(logicSource)()
+        local _, src = freshGet(BASE_URL .. "games/logic/" .. effectiveId .. ".lua")
+        loadstring(src)()
     end)
     if not logicSuccess then
         warn("[$$ banknote $$] Logic error: " .. tostring(logicErr))
@@ -137,11 +131,11 @@ elseif GameConfig then
     UI:Build(GameConfig, Library, placeName)
     if hasAddonLogic then
         local logicSuccess, logicErr = pcall(function()
-            local logicSource = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua" .. bust())
-            loadstring(logicSource)()
+            local _, src = freshGet(BASE_URL .. "games/logic/" .. effectiveId .. ".lua")
+            loadstring(src)()
         end)
         if logicSuccess then
-            print("[$$ banknote $$] Loaded addon logic for PlaceId: " .. PlaceId)
+            print("[$$ banknote $$] Loaded addon logic for id: " .. effectiveId)
         else
             warn("[$$ banknote $$] Addon logic error: " .. tostring(logicErr))
         end
