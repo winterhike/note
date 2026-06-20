@@ -8,14 +8,15 @@ return {
             Name = "combat",
             Sections = {
                 {
-                    Name = "Aimbot",
+                    Name = "Silent Aim",
                     Side = 1,
                     Elements = {
-                        {Type = "Toggle", Name = "Silent Aim", Flag = "SilentAim", Default = false},
-                        {Type = "Dropdown", Name = "Target Part", Flag = "TargetPart", Items = {"Head", "Torso", "Random"}, Default = "Head"},
-                        {Type = "Slider", Name = "FOV Radius", Flag = "AimFOV", Min = 10, Max = 500, Default = 150, Decimals = 1, Suffix = "px"},
-                        {Type = "Toggle", Name = "Show FOV Circle", Flag = "ShowFOV", Default = false},
-                        {Type = "Toggle", Name = "Wall Check", Flag = "WallCheck", Default = true},
+                        {Type = "Toggle", Name = "Enable", Flag = "SilentAim", Default = false},
+                        {Type = "Dropdown", Name = "Hit Part", Flag = "SilentHitPart", Items = {"Head", "Torso", "HumanoidRootPart", "LeftFoot", "RightFoot"}, Default = "Head"},
+                        {Type = "Slider", Name = "FOV Radius", Flag = "SilentFOV", Min = 10, Max = 800, Default = 200, Decimals = 1, Suffix = "px"},
+                        {Type = "Slider", Name = "Hit Chance", Flag = "SilentHitChance", Min = 0, Max = 100, Default = 100, Decimals = 1, Suffix = "%"},
+                        {Type = "Toggle", Name = "Show FOV Circle", Flag = "ShowFOVCircle", Default = false},
+                        {Type = "Label", Name = "FOV Color", Colorpicker = {Name = "FOV Color", Flag = "FOVCircleColor", Default = Color3.fromRGB(255, 255, 255)}},
                     }
                 },
                 {

@@ -4,7 +4,7 @@
     Caches files locally in the workspace folder "banknote" to avoid re-downloading.
 ]]
 
-local VERSION = "1.1.3"
+local VERSION = "1.1.4"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 
@@ -63,13 +63,20 @@ getgenv().BanknoteLibrary = Library
 local uiSource = cachedGet(BASE_URL .. "UI.lua", "UI.lua")
 local UI = loadstring(uiSource)()
 
--- Check whether this game ships a full logic script (builds its own UI)
+-- Check whether this game ships a FULL logic script (builds its own UI via shim)
 local PlaceId = tostring(game.PlaceId)
-local hasLogic = false
+local hasFullLogic = false -- only Rivals-style scripts that build their own window
+local hasAddonLogic = false -- lightweight logic scripts that just hook game mechanics
+
 do
     local probe = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua")
     if probe and #probe > 0 and not probe:find("404: Not Found") then
-        hasLogic = true
+        -- If the logic file loads the shim (builds its own UI), it's full logic
+        if probe:find("shim.lua", 1, true) or probe:find("BanknoteLibrary", 1, true) then
+            hasFullLogic = true
+        else
+            hasAddonLogic = true
+        end
     end
 end
 
@@ -111,20 +118,29 @@ if not isUniversal then
 end
 
 -- If the game has a full logic script, let it build the whole UI itself.
--- Otherwise build the generic config-driven UI.
-if hasLogic then
+-- Otherwise build the generic config-driven UI, then load addon logic if available.
+if hasFullLogic then
     print("[$$ banknote $$] Running full logic for PlaceId: " .. PlaceId)
     local logicSuccess, logicErr = pcall(function()
         local logicSource = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua")
         loadstring(logicSource)()
     end)
     if not logicSuccess then
-        -- The logic builds its own UI; do NOT fall back to the generic UI
-        -- (that would create a second window). Just report the error.
         warn("[$$ banknote $$] Logic error: " .. tostring(logicErr))
     end
 elseif GameConfig then
     UI:Build(GameConfig, Library, placeName)
+    if hasAddonLogic then
+        local logicSuccess, logicErr = pcall(function()
+            local logicSource = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua")
+            loadstring(logicSource)()
+        end)
+        if logicSuccess then
+            print("[$$ banknote $$] Loaded addon logic for PlaceId: " .. PlaceId)
+        else
+            warn("[$$ banknote $$] Addon logic error: " .. tostring(logicErr))
+        end
+    end
 else
     warn("[$$ banknote $$] Failed to load any game config.")
 end
