@@ -12265,6 +12265,10 @@ local function bindvulnerable(callback)
 end
 
 runsvc.Heartbeat:Connect(function()
+    -- $$ banknote $$ perf: only scan immunity when ragebot is active
+    if not (config.target.rageMasterOn or config.target.auto or config.target.enabled) then
+        return
+    end
     for _, plr in pairs(players:GetPlayers()) do
         if plr == player then continue end
         local char = plr.Character
@@ -12480,6 +12484,11 @@ runsvc.RenderStepped:Connect(function()
 end)
 
 runsvc.Heartbeat:Connect(function()
+    -- $$ banknote $$ perf: skip heavy ragebot bookkeeping when ragebot is idle
+    if not (config.target.rageMasterOn or config.target.auto or config.target.enabled
+        or config.voidspam.enabled or config.state.csyncactive) then
+        return
+    end
     fflag()
     updatesling()
     tickAmmo()

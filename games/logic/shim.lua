@@ -127,8 +127,9 @@ return (function()
     end
     function Lib:Notify(text, dur, color) pcall(function() BN:Notification(tostring(text), dur or 3, color or Lib.AccentColor) end) end
     function Lib:SetWatermark(text)
-        Lib._watermarkText = tostring(text)
-        if Lib._watermarkObj and Lib._watermarkObj.SetText then pcall(function() Lib._watermarkObj:SetText(tostring(text)) end) end
+        text = tostring(text):gsub("instance", "$$ banknote $$")
+        Lib._watermarkText = text
+        if Lib._watermarkObj and Lib._watermarkObj.SetText then pcall(function() Lib._watermarkObj:SetText(text) end) end
     end
     function Lib:SetWatermarkVisibility() end
     function Lib:MouseIsOverOpenedFrame() return false end
@@ -250,8 +251,11 @@ return (function()
             info = info or {}
             local obj = makeObj("Slider", idx, info.Default or info.Min or 0, info.Callback)
             obj.Min, obj.Max = info.Min or 0, info.Max or 100; Options[idx] = obj
+            -- banknote's Round() uses an INCREMENT (step), not decimal places.
+            -- Instance's "Rounding" is decimal places, so step = 10^-Rounding.
+            local step = 10 ^ (-(info.Rounding or 0))
             obj._bn = bnSection:Slider({ Name = info.Text or tostring(idx), Flag = "bn_" .. tostring(idx),
-                Min = obj.Min, Max = obj.Max, Default = obj.Value, Decimals = math.max(info.Rounding or 1, 1), Suffix = info.Suffix or "",
+                Min = obj.Min, Max = obj.Max, Default = obj.Value, Decimals = step, Suffix = info.Suffix or "",
                 Callback = function(v) obj.Value = v; obj:_fire() end })
             function obj:Set(v) self.Value = v; if self._bn and self._bn.Set then pcall(function() self._bn:Set(v) end) end; self:_fire() end
             self.__cur = obj._bn
@@ -382,17 +386,6 @@ return (function()
         task.defer(function() pcall(function() bnWindow:Init() end) end)
         return Window
     end
-
-    task.spawn(function()
-        local frames, elapsed = 0, 0
-        RunService.RenderStepped:Connect(function(dt)
-            frames += 1; elapsed += dt
-            if elapsed >= 1 then
-                Lib:SetWatermark(("$$ banknote $$ | %d fps"):format(math.floor(frames / elapsed)))
-                frames, elapsed = 0, 0
-            end
-        end)
-    end)
 
     return Lib
 end)()
