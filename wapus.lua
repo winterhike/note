@@ -2764,10 +2764,23 @@ end)()
 
 LPH_JIT_MAX(function() -- Main Cheat
     local moduleCache
-    for i, v in getgc(true) do
-        if type(v) == "table" and rawget(v, "ScreenCull") and rawget(v, "NetworkClient") then
-            moduleCache = v
-            break
+    do
+        -- $$ banknote $$ fix: PF's client modules may not be in the GC yet when
+        -- the loader runs early; retry the scan instead of one-shot (original
+        -- code errored on `for name,data in moduleCache` when this was nil).
+        local deadline = tick() + 60
+        repeat
+            for i, v in getgc(true) do
+                if type(v) == "table" and rawget(v, "ScreenCull") and rawget(v, "NetworkClient") then
+                    moduleCache = v
+                    break
+                end
+            end
+            if not moduleCache then task.wait(0.25) end
+        until moduleCache or tick() > deadline
+        if not moduleCache then
+            warn("[banknote/PF] wapus: PF module cache not found after 60s (deploy into a match, then re-run)")
+            return
         end
     end
 
