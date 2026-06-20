@@ -1,6 +1,6 @@
 --[[
     $$ banknote $$ - MVSD Logic (PlaceId: 12355337193)
-    Silent Aim with FOV circle, hit chance, hit part selection.
+    Silent Aim with FOV circle (GUI based), hit chance, hit part selection.
     Reads from getgenv().BanknoteFlags (set by the UI config callbacks).
 ]]
 
@@ -23,39 +23,51 @@ local function getMouse()
 end
 
 ------------------------------------------------------------------
--- FOV CIRCLE (set up first so it always works, even if the
--- aim hook fails on a given executor)
+-- FOV CIRCLE (GUI Frame + UICorner + UIStroke)
 ------------------------------------------------------------------
-local Circle
-local circleOk = pcall(function()
-    Circle = Drawing.new("Circle")
-    Circle.Color = Color3.new(1, 1, 1)
-    Circle.NumSides = 360
-    Circle.Thickness = 1.5
-    Circle.Filled = false
-    Circle.Transparency = 1
-    Circle.Radius = 200
-    Circle.Visible = false
+local guiParent = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "BanknoteFOV"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.DisplayOrder = 999999
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+screenGui.Parent = guiParent
+
+local circle = Instance.new("Frame")
+circle.Size = UDim2.fromOffset(400, 400)
+circle.AnchorPoint = Vector2.new(0.5, 0.5)
+circle.BackgroundTransparency = 1
+circle.BorderSizePixel = 0
+circle.Visible = false
+circle.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(1, 0)
+corner.Parent = circle
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(255, 255, 255)
+stroke.Thickness = 2
+stroke.Parent = circle
+
+local renderSignal = RunService.PreRender or RunService.RenderStepped
+renderSignal:Connect(function()
+    local f = flags()
+    if f["ShowFOVCircle"] == true then
+        local radius = f["SilentFOV"] or 200
+        circle.Size = UDim2.fromOffset(radius * 2, radius * 2)
+        stroke.Color = f["FOVCircleColor"] or Color3.fromRGB(255, 255, 255)
+        local mp = getMouse()
+        circle.Position = UDim2.fromOffset(mp.X, mp.Y)
+        circle.Visible = true
+    else
+        circle.Visible = false
+    end
 end)
 
-if circleOk and Circle then
-    local renderSignal = RunService.PreRender or RunService.RenderStepped
-    renderSignal:Connect(function()
-        local f = flags()
-        if f["ShowFOVCircle"] == true then
-            Circle.Visible = true
-            Circle.Radius = f["SilentFOV"] or 200
-            Circle.Color = f["FOVCircleColor"] or Color3.new(1, 1, 1)
-            local mp = getMouse()
-            Circle.Position = Vector2.new(mp.X, mp.Y)
-        else
-            Circle.Visible = false
-        end
-    end)
-    print("[$$ banknote $$] MVSD FOV circle ready")
-else
-    warn("[$$ banknote $$] Drawing.new('Circle') failed on this executor")
-end
+print("[$$ banknote $$] MVSD FOV circle ready")
 
 ------------------------------------------------------------------
 -- SILENT AIM (redirects GetMouseLocation to closest target in FOV)
