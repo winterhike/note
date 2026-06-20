@@ -1,5 +1,6 @@
 --[[
     Game Config - Murderers VS Sheriffs Duels (PlaceId: 12355337193)
+    Devlog: Unfinished
 ]]
 
 return {

@@ -1,5 +1,6 @@
 --[[
     Game Config - Bedwars (PlaceId: 6872274481)
+    Devlog: Unfinished
 ]]
 
 return {

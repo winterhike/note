@@ -1,5 +1,6 @@
 --[[
     Game Config - Arsenal (PlaceId: 286090429)
+    Devlog: Finished
 ]]
 
 return {

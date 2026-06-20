@@ -1,6 +1,7 @@
 --[[
     Game Config - RIVALS (PlaceId: 17625359962)
     Features ported from Instance.lua
+    Devlog: DONE
 ]]
 
 return {
