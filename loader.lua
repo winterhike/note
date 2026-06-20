@@ -5,7 +5,7 @@
     Caches files locally in the workspace folder "banknote".
 ]]
 
-local VERSION = "1.2.1"
+local VERSION = "1.2.2"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 
@@ -13,6 +13,8 @@ local CACHE_FOLDER = "banknote"
 -- on different PlaceIds within the same universe.
 local UNIVERSE_MAP = {
     ["6035872082"] = "17625359962", -- Rivals (all match sub-places)
+    ["113491250"]  = "254965063",   -- Phantom Forces (main universe / sub-places)
+    ["104923451"]  = "254965063",   -- Phantom Forces (Console universe)
 }
 
 -- Cache-buster so GitHub's raw CDN always serves the freshest files
