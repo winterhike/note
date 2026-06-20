@@ -23,6 +23,13 @@ return (function()
 
     local Toggles = {}
     local Options = {}
+    -- nil-safe access: any unregistered flag returns a harmless stub so
+    -- calls like Options.X:OnChanged(...) / Toggles.X.Value never error.
+    local Stub = setmetatable({ Value = false, Mode = "Toggle", Type = "Stub" }, {
+        __index = function() return function() end end,
+    })
+    setmetatable(Toggles, { __index = function() return Stub end })
+    setmetatable(Options, { __index = function() return Stub end })
     getgenv().Toggles = Toggles
     getgenv().Options = Options
 

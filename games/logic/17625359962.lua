@@ -89,20 +89,9 @@ local function instanceHideErrorPromptsStep()
 end
 
 local function instanceRunLoadingBootstrap()
-    local runService = game:GetService("RunService")
-    local dismissLoading = instanceShowLoadingNotification()
-    local hideErrors = true
-    local hideConn = runService.RenderStepped:Connect(function()
-        if hideErrors then instanceHideErrorPromptsStep() end
-    end)
-
-    task.wait(0.8)
-
+    -- $$ banknote $$: skip Instance's loading GUI + error-hider render loop;
+    -- only preload the modules the features need.
     pcall(instancePreloadCoreModules)
-
-    hideErrors = false
-    if hideConn then hideConn:Disconnect() hideConn = nil end
-    if dismissLoading then dismissLoading() end
 end
 
 local RunService = game:GetService("RunService")
