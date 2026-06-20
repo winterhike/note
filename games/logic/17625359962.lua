@@ -7959,7 +7959,7 @@ local RS = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
-getgenv().CombatMods = {
+getgenv().CombatMods = getgenv().CombatMods or {
     RapidFire = false,
     NoSpread = false,
     NoRecoil = false,
@@ -7974,11 +7974,13 @@ getgenv().CombatMods = {
 }
 
 task.spawn(function()
+    if getgenv().BanknoteGunHooked then return end
     local success, GunModule = pcall(function()
         return require(LocalPlayer.PlayerScripts.Modules.ItemTypes.Gun)
     end)
     
     if success and GunModule then
+        getgenv().BanknoteGunHooked = true
         getgenv().CombatMods.GunModule = GunModule
         
         if GunModule.StartShooting then
@@ -8015,11 +8017,13 @@ task.spawn(function()
 end)
 
 task.spawn(function()
+    if getgenv().BanknoteSpreadHooked then return end
     local success, GameplayUtility = pcall(function()
         return require(RS.Modules.GameplayUtility)
     end)
     
     if success and GameplayUtility and GameplayUtility.GetSpread then
+        getgenv().BanknoteSpreadHooked = true
         getgenv().CombatMods.GameplayUtility = GameplayUtility
         getgenv().CombatMods.OriginalGetSpread = GameplayUtility.GetSpread
         
@@ -8033,11 +8037,13 @@ task.spawn(function()
 end)
 
 task.spawn(function()
+    if getgenv().BanknoteMeleeHooked then return end
     local success, MeleeModule = pcall(function()
         return require(LocalPlayer.PlayerScripts.Modules.ItemTypes.Melee)
     end)
     
     if success and MeleeModule then
+        getgenv().BanknoteMeleeHooked = true
         getgenv().CombatMods.MeleeModule = MeleeModule
         
         if MeleeModule.StartShooting then
