@@ -1,5 +1,5 @@
 --[[
-    Loader - juanitahaxx
+    Loader - $$ banknote $$
     Automatically detects the current PlaceId and loads the matching game config.
     Then loads the UI which builds itself from that config.
 ]]
@@ -19,15 +19,15 @@ end)
 
 if success and result then
     GameConfig = result
-    print("[juanitahaxx] Loaded config for PlaceId: " .. PlaceId)
+    print("[$$ banknote $$] Loaded config for PlaceId: " .. PlaceId)
 else
-    print("[juanitahaxx] No config found for PlaceId: " .. PlaceId .. " - loading universal features only")
+    print("[$$ banknote $$] No config found for PlaceId: " .. PlaceId .. " - loading universal features only")
     local fallbackSuccess, fallbackResult = pcall(function()
         return loadstring(game:HttpGet(BASE_URL .. "games/universal.lua"))()
     end)
     if fallbackSuccess and fallbackResult then
         GameConfig = fallbackResult
-        print("[juanitahaxx] Loaded universal config")
+        print("[$$ banknote $$] Loaded universal config")
     end
 end
 
@@ -35,5 +35,5 @@ end
 if GameConfig then
     UI:Build(GameConfig)
 else
-    warn("[juanitahaxx] Failed to load any game config.")
+    warn("[$$ banknote $$] Failed to load any game config.")
 end

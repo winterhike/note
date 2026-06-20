@@ -1,5 +1,5 @@
 --[[
-    UI Builder - juanitahaxx
+    UI Builder - $$ banknote $$
     Dynamically builds the UI from a game config table.
     This file is loaded by loader.lua and receives game-specific features.
 ]]
@@ -9,8 +9,8 @@ local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/samet
 local UI = {}
 
 function UI:Build(Config)
-    local Window = Library:Window({Name = "juanitahaxx"})
-    local Watermark = Window:Watermark({Name = "juanitahaxx"})
+    local Window = Library:Window({Name = "$$ banknote $$"})
+    local Watermark = Window:Watermark({Name = "$$ banknote $$"})
     local KeybindList = Window:KeybindList()
 
     -- Iterate through each page defined in the config
