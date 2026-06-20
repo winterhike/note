@@ -25,6 +25,8 @@ Circle.Color = Color3.new(1, 1, 1)
 Circle.NumSides = 360
 Circle.Thickness = 1.5
 Circle.Filled = false
+Circle.Transparency = 1
+Circle.Radius = 200
 Circle.Visible = false
 
 local function UpdateCircle()
@@ -34,7 +36,8 @@ local function UpdateCircle()
 
     if visible then
         Circle.Radius = f["SilentFOV"] or 200
-        Circle.Position = GetMouse(UserInputService)
+        local ok, pos = pcall(GetMouse, UserInputService)
+        Circle.Position = ok and pos or UserInputService:GetMouseLocation()
         Circle.Color = f["FOVCircleColor"] or Color3.new(1, 1, 1)
     end
 end
@@ -96,7 +99,8 @@ OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     return OldNamecall(self, ...)
 end))
 
--- Update circle every frame
-RunService.PreRender:Connect(UpdateCircle)
+-- Update circle every frame (PreRender isn't available on all executors)
+local renderSignal = RunService.PreRender or RunService.RenderStepped
+renderSignal:Connect(UpdateCircle)
 
 print("[$$ banknote $$] MVSD silent aim loaded")
