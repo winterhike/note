@@ -4,7 +4,7 @@
     Then loads the UI which builds itself from that config.
 ]]
 
-local BASE_URL = "https://raw.githubusercontent.com/sametexe001/juanitahaxx/refs/heads/main/"
+local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 
 -- Load the UI builder
 local UI = loadstring(game:HttpGet(BASE_URL .. "UI.lua"))()
