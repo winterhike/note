@@ -16,6 +16,88 @@ local function flags()
 end
 
 ------------------------------------------------------------------
+-- Gun Mods (infinite ammo, fast fire, no recoil, full auto, no spread)
+------------------------------------------------------------------
+do
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local WeaponsFolder = ReplicatedStorage:WaitForChild("Weapons", 10)
+    local OriginalWeaponData = {}
+
+    local function gms()
+        local f = flags()
+        return {
+            infiniteAmmo = f["InfiniteAmmo"] == true,
+            fastFire = f["FastFire"] == true,
+            fireRate = f["FireRate"] or 0.05,
+            noRecoil = f["NoRecoil"] == true,
+            allAuto = f["FullAuto"] == true,
+            noSpread = f["NoSpread"] == true,
+        }
+    end
+
+    local function backupSingleWeapon(weapon)
+        if weapon and not OriginalWeaponData[weapon] then
+            OriginalWeaponData[weapon] = {}
+            for _, prop in ipairs(weapon:GetChildren()) do
+                if prop:IsA("ValueBase") then
+                    OriginalWeaponData[weapon][prop.Name] = prop.Value
+                end
+            end
+        end
+    end
+
+    local function applyGunModsToWeapon(weapon)
+        if not weapon or not OriginalWeaponData[weapon] then return end
+        local s = gms()
+        if s.infiniteAmmo then
+            if not weapon:FindFirstChild("Infinite") then Instance.new("Folder", weapon).Name = "Infinite" end
+        else
+            if weapon:FindFirstChild("Infinite") then weapon.Infinite:Destroy() end
+        end
+        if weapon:FindFirstChild("FireRate") then
+            weapon.FireRate.Value = s.fastFire and s.fireRate or OriginalWeaponData[weapon].FireRate
+        end
+        if weapon:FindFirstChild("RecoilControl") then
+            weapon.RecoilControl.Value = s.noRecoil and 0 or OriginalWeaponData[weapon].RecoilControl
+        end
+        if weapon:FindFirstChild("Auto") then
+            weapon.Auto.Value = s.allAuto or OriginalWeaponData[weapon].Auto
+        end
+        if weapon:FindFirstChild("Spread") then
+            weapon.Spread.Value = s.noSpread and 0 or OriginalWeaponData[weapon].Spread
+        end
+    end
+
+    local function updateAllWeaponMods()
+        if not WeaponsFolder then return end
+        for _, weapon in ipairs(WeaponsFolder:GetChildren()) do
+            applyGunModsToWeapon(weapon)
+        end
+    end
+
+    if WeaponsFolder then
+        for _, weapon in ipairs(WeaponsFolder:GetChildren()) do backupSingleWeapon(weapon) end
+        WeaponsFolder.ChildAdded:Connect(function(weapon)
+            task.wait()
+            backupSingleWeapon(weapon)
+            applyGunModsToWeapon(weapon)
+        end)
+    end
+
+    -- re-apply whenever a gun-mod flag changes (cheap poll)
+    local lastSig = ""
+    RunService.Heartbeat:Connect(function()
+        local f = flags()
+        local sig = tostring(f["InfiniteAmmo"]) .. tostring(f["FastFire"]) .. tostring(f["FireRate"])
+            .. tostring(f["NoRecoil"]) .. tostring(f["FullAuto"]) .. tostring(f["NoSpread"])
+        if sig ~= lastSig then
+            lastSig = sig
+            updateAllWeaponMods()
+        end
+    end)
+end
+
+------------------------------------------------------------------
 -- Old Case Access (unlocks legacy crates in the shop)
 ------------------------------------------------------------------
 getgenv().BanknoteButtonHandlers = getgenv().BanknoteButtonHandlers or {}

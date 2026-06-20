@@ -20,14 +20,15 @@ return {
                     }
                 },
                 {
-                    Name = "Weapons",
+                    Name = "Gun Mods",
                     Side = 2,
                     Elements = {
+                        {Type = "Toggle", Name = "Infinite Ammo", Flag = "InfiniteAmmo", Default = false},
+                        {Type = "Toggle", Name = "Fast Fire", Flag = "FastFire", Default = false},
+                        {Type = "Slider", Name = "Fire Rate", Flag = "FireRate", Min = 0.01, Max = 0.5, Default = 0.05, Decimals = 2, Suffix = "s"},
                         {Type = "Toggle", Name = "No Recoil", Flag = "NoRecoil", Default = false},
+                        {Type = "Toggle", Name = "Full Auto", Flag = "FullAuto", Default = false},
                         {Type = "Toggle", Name = "No Spread", Flag = "NoSpread", Default = false},
-                        {Type = "Toggle", Name = "Rapid Fire", Flag = "RapidFire", Default = false},
-                        {Type = "Toggle", Name = "Auto Shoot", Flag = "AutoShoot", Default = false},
-                        {Type = "Toggle", Name = "Kill All", Flag = "KillAll", Default = false},
                     }
                 }
             }
