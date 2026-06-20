@@ -4,7 +4,7 @@
     Caches files locally in the workspace folder "banknote" to avoid re-downloading.
 ]]
 
-local VERSION = "1.0.4"
+local VERSION = "1.1.0"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 
@@ -56,12 +56,24 @@ end
 local librarySource = cachedGet(BASE_URL .. "library/Library.lua", "Library.lua")
 local Library = loadstring(librarySource)()
 
+-- Expose the banknote library globally so game-logic shims can build their own UI
+getgenv().BanknoteLibrary = Library
+
 -- Load the UI builder (cached)
 local uiSource = cachedGet(BASE_URL .. "UI.lua", "UI.lua")
 local UI = loadstring(uiSource)()
 
--- Try to load the game-specific config based on PlaceId
+-- Check whether this game ships a full logic script (builds its own UI)
 local PlaceId = tostring(game.PlaceId)
+local hasLogic = false
+do
+    local probe = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua")
+    if probe and #probe > 0 and not probe:find("404: Not Found") then
+        hasLogic = true
+    end
+end
+
+-- Try to load the game-specific config based on PlaceId
 local GameConfig = nil
 local isUniversal = false
 
@@ -98,22 +110,20 @@ if not isUniversal then
     end
 end
 
--- Build the UI with the loaded config
-if GameConfig then
+-- If the game has a full logic script, let it build the whole UI itself.
+-- Otherwise build the generic config-driven UI.
+if hasLogic then
+    print("[$$ banknote $$] Running full logic for PlaceId: " .. PlaceId)
+    local logicSuccess, logicErr = pcall(function()
+        local logicSource = game:HttpGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua")
+        loadstring(logicSource)()
+    end)
+    if not logicSuccess then
+        warn("[$$ banknote $$] Logic error: " .. tostring(logicErr))
+        if GameConfig then UI:Build(GameConfig, Library, placeName) end
+    end
+elseif GameConfig then
     UI:Build(GameConfig, Library, placeName)
 else
     warn("[$$ banknote $$] Failed to load any game config.")
-end
-
--- Load game-specific logic script if available
-local logicSuccess, logicErr = pcall(function()
-    local logicSource = cachedGet(BASE_URL .. "games/logic/" .. PlaceId .. ".lua", "games/logic_" .. PlaceId .. ".lua")
-    if logicSource and #logicSource > 0 and not logicSource:find("404: Not Found") then
-        loadstring(logicSource)()
-        print("[$$ banknote $$] Loaded logic for PlaceId: " .. PlaceId)
-    end
-end)
-
-if not logicSuccess then
-    print("[$$ banknote $$] No logic file for this game (UI only)")
 end
