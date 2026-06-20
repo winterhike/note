@@ -30,14 +30,33 @@ end
 
 local function log(...) print("[banknote/PF]", ...) end
 
+-- Resolve an always-fresh URL for wapus.lua. raw.githubusercontent.com caches
+-- the master branch for ~5 min and ignores ?_= cache-busters, so we pin to the
+-- latest commit SHA (commit-pinned raw URLs are immutable and never stale).
+local function wapusURL()
+    local okSha, body = pcall(function()
+        return game:HttpGet("https://api.github.com/repos/endmylifehahahahahahahahaha/banknote-hub/commits/master")
+    end)
+    if okSha and type(body) == "string" then
+        local sha = body:match('"sha"%s*:%s*"(%x+)"')
+        if sha then
+            log("pinned to commit", sha:sub(1, 7))
+            return "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/" .. sha .. "/wapus.lua"
+        end
+    end
+    log("commit SHA unavailable, falling back to master (may be cached)")
+    return BASE_URL .. "wapus.lua?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6))
+end
+
 --======================================================================
 -- 1. Run the wapus codebase intact
 --======================================================================
 do
     log("fetching wapus.lua ...")
+    local url = wapusURL()
     local src
     local okFetch, fetchErr = pcall(function()
-        src = game:HttpGet(BASE_URL .. "wapus.lua?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6)))
+        src = game:HttpGet(url)
     end)
     if not okFetch or type(src) ~= "string" or #src < 1000 then
         warn("[banknote/PF] wapus.lua fetch failed:", fetchErr, "len:", src and #src)
