@@ -405,6 +405,20 @@ log("window:Init() done:", okInit)
 --======================================================================
 do
     local function fireWapusUnload()
+        -- 1. turn every feature OFF so each feature's own callback reverts its
+        -- visuals (ESP drawings, chams, world lighting, crosshair, etc.).
+        pcall(function()
+            for _, sec in pairs(wapus.sectionIndexes) do
+                if type(sec) == "table" and sec.flags then
+                    for _, flag in pairs(sec.flags) do
+                        if type(flag) == "table" and flag.type == "toggle" and flag.value == true then
+                            pcall(function() flag:SetValue(false) end)
+                        end
+                    end
+                end
+            end
+        end)
+        -- 2. fire wapus' own Unload button (unloadMain) for full teardown
         pcall(function()
             local sec = wapus.sectionIndexes and wapus.sectionIndexes["Cheat Settings"]
             if sec and sec.elements then
@@ -416,9 +430,12 @@ do
                 end
             end
         end)
+        -- 3. nuke any leftover wapus drawings + the menu guard
+        pcall(function() if cleardrawcache then cleardrawcache() end end)
         pcall(function()
             if getgenv()._WapusMenuGuard then getgenv()._WapusMenuGuard:Disconnect() end
         end)
+        getgenv()._WapusBanknoteLoaded = nil
     end
 
     local realExit = BN.Exit
