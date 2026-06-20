@@ -54,6 +54,7 @@ return {
                         {Type = "Toggle", Name = "Anti AFK", Flag = "AntiAFK", Default = false},
                         {Type = "Toggle", Name = "God Mode", Flag = "GodMode", Default = false},
                         {Type = "Toggle", Name = "Instant Win", Flag = "InstantWin", Default = false},
+                        {Type = "Button", Name = "Old Case Access", Flag = "OldCaseAccess", Detection = "warn"},
                         {Type = "Button", Name = "Skip Gun"},
                         {Type = "Button", Name = "Rejoin Server"},
                         {Type = "Button", Name = "Server Hop"},

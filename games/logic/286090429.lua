@@ -16,6 +16,21 @@ local function flags()
 end
 
 ------------------------------------------------------------------
+-- Old Case Access (unlocks legacy crates in the shop)
+------------------------------------------------------------------
+getgenv().BanknoteButtonHandlers = getgenv().BanknoteButtonHandlers or {}
+getgenv().BanknoteButtonHandlers["OldCaseAccess"] = function()
+    local crates = { "WinterCrate", "UnusualCrate", "HalloweenCrate", "GiftCrate" }
+    pcall(function()
+        local cases = LocalPlayer:WaitForChild("PlayerGui").Menew.Shop.Cases
+        for _, crate in ipairs(crates) do
+            local c = cases:FindFirstChild(crate)
+            if c then c.Visible = true end
+        end
+    end)
+end
+
+------------------------------------------------------------------
 -- Mirror UI flags onto Camera attributes so the actor can read them
 ------------------------------------------------------------------
 local function syncAttrs()

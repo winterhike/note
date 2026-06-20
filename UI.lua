@@ -14,12 +14,88 @@ function UI:Build(Config, Library, placeName)
 
     -- Global flags table for logic scripts to read
     getgenv().BanknoteFlags = getgenv().BanknoteFlags or {}
+    getgenv().BanknoteButtonHandlers = getgenv().BanknoteButtonHandlers or {}
 
     -- Helper to set default flag values
     local function setDefaultFlag(flag, value)
         if flag and value ~= nil then
             getgenv().BanknoteFlags[flag] = value
         end
+    end
+
+    --==================================================================
+    -- Detection markers + hover tooltips
+    --==================================================================
+    local UISvc = game:GetService("UserInputService")
+    local RunSvc = game:GetService("RunService")
+
+    local tooltipGui = Instance.new("ScreenGui")
+    tooltipGui.Name = "BanknoteTooltips"
+    tooltipGui.ResetOnSpawn = false
+    tooltipGui.IgnoreGuiInset = true
+    tooltipGui.DisplayOrder = 2147483647
+    tooltipGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+
+    local ttFrame = Instance.new("Frame")
+    ttFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+    ttFrame.BorderSizePixel = 0
+    ttFrame.Visible = false
+    ttFrame.Size = UDim2.fromOffset(250, 46)
+    ttFrame.ZIndex = 1000
+    ttFrame.Parent = tooltipGui
+    local ttStroke = Instance.new("UIStroke")
+    ttStroke.Color = Color3.fromRGB(0, 0, 0)
+    ttStroke.Thickness = 1
+    ttStroke.Parent = ttFrame
+    local ttPad = Instance.new("UIPadding")
+    ttPad.PaddingLeft = UDim.new(0, 6); ttPad.PaddingRight = UDim.new(0, 6)
+    ttPad.PaddingTop = UDim.new(0, 4); ttPad.PaddingBottom = UDim.new(0, 4)
+    ttPad.Parent = ttFrame
+    local ttLabel = Instance.new("TextLabel")
+    ttLabel.BackgroundTransparency = 1
+    ttLabel.Size = UDim2.new(1, 0, 1, 0)
+    ttLabel.TextWrapped = true
+    ttLabel.Font = Enum.Font.Code
+    ttLabel.TextSize = 13
+    ttLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
+    ttLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ttLabel.TextYAlignment = Enum.TextYAlignment.Center
+    ttLabel.ZIndex = 1001
+    ttLabel.Parent = ttFrame
+
+    local ttConn
+    local function showTooltip(msg)
+        ttLabel.Text = msg
+        ttFrame.Size = UDim2.fromOffset(250, 46)
+        ttFrame.Visible = true
+        if ttConn then ttConn:Disconnect() end
+        ttConn = RunSvc.RenderStepped:Connect(function()
+            local m = UISvc:GetMouseLocation()
+            ttFrame.Position = UDim2.fromOffset(m.X + 16, m.Y + 10)
+        end)
+    end
+    local function hideTooltip()
+        ttFrame.Visible = false
+        if ttConn then ttConn:Disconnect(); ttConn = nil end
+    end
+
+    -- Appends a red "DETECTED (?)/(!)" marker to an element and shows a
+    -- warning tooltip on hover. detection = "warn" (?) or "detected" (!)
+    local function applyDetection(obj, detection)
+        local mark, msg
+        if detection == "detected" then
+            mark = "(!)"
+            msg = "this feature is detected, seen from our tests, use it with caution."
+        else
+            mark = "(?)"
+            msg = "this feature potentially may be detected, use it with caution."
+        end
+        local label = obj and obj.Items and obj.Items["Text"] and obj.Items["Text"].Instance
+        if not label then return end
+        label.RichText = true
+        label.Text = label.Text .. '  <font color="rgb(255,55,55)">DETECTED ' .. mark .. '</font>'
+        label.MouseEnter:Connect(function() showTooltip(msg) end)
+        label.MouseLeave:Connect(function() hideTooltip() end)
     end
 
     -- Iterate through each page defined in the config
@@ -36,7 +112,7 @@ function UI:Build(Config, Library, placeName)
 
                 if elemType == "Toggle" then
                     setDefaultFlag(element.Flag, element.Default or false)
-                    Section:Toggle({
+                    local tgl = Section:Toggle({
                         Name = element.Name,
                         Flag = element.Flag,
                         Default = element.Default or false,
@@ -44,16 +120,23 @@ function UI:Build(Config, Library, placeName)
                             getgenv().BanknoteFlags[element.Flag] = v
                         end
                     })
+                    if element.Detection then applyDetection(tgl, element.Detection) end
 
                 elseif elemType == "Button" then
-                    Section:Button({
+                    local btn = Section:Button({
                         Name = element.Name,
-                        Callback = element.Callback or function() end
+                        Callback = element.Callback or function()
+                            local h = getgenv().BanknoteButtonHandlers
+                            if h and element.Flag and h[element.Flag] then
+                                pcall(h[element.Flag])
+                            end
+                        end
                     })
+                    if element.Detection then applyDetection(btn, element.Detection) end
 
                 elseif elemType == "Slider" then
                     setDefaultFlag(element.Flag, element.Default or 0)
-                    Section:Slider({
+                    local sld = Section:Slider({
                         Name = element.Name,
                         Flag = element.Flag,
                         Min = element.Min or 0,
@@ -65,10 +148,11 @@ function UI:Build(Config, Library, placeName)
                             getgenv().BanknoteFlags[element.Flag] = value
                         end
                     })
+                    if element.Detection then applyDetection(sld, element.Detection) end
 
                 elseif elemType == "Dropdown" then
                     setDefaultFlag(element.Flag, element.Default or "")
-                    Section:Dropdown({
+                    local dd = Section:Dropdown({
                         Name = element.Name,
                         Flag = element.Flag,
                         Items = element.Items or {},
@@ -78,6 +162,7 @@ function UI:Build(Config, Library, placeName)
                             getgenv().BanknoteFlags[element.Flag] = value
                         end
                     })
+                    if element.Detection then applyDetection(dd, element.Detection) end
 
                 elseif elemType == "Textbox" then
                     Section:Textbox({
