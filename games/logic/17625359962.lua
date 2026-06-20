@@ -8205,10 +8205,13 @@ local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
 
 local fonts = {}
-fonts.main = getgenv().InstanceUIFont or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black)
+fonts.main = getgenv().InstanceUIFont or Font.new("rbxasset://fonts/families/GothamSSm.json")
 -- $$ banknote $$: ensure fonts.main is a Font object (FontFace can't take an EnumItem)
 if typeof(fonts.main) ~= "Font" then
-    fonts.main = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black)
+    local ok, f = pcall(function()
+        return Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
+    end)
+    fonts.main = (ok and f) or Font.new("rbxasset://fonts/families/GothamSSm.json")
 end
 
 local hitEffectsTab = HitGroup:AddTab('hit effects')
