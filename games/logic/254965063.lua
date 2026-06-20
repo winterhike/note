@@ -49,7 +49,7 @@ do
     end
 
     local pom = parallelOnMain()
-    if pom == false then
+    if pom ~= true then
         if getgenv()._WapusFflagTried then
             warn("[banknote/PF] parallel-Lua-on-main still off after rejoin; proceeding best-effort")
         elseif setfflag then
@@ -59,7 +59,7 @@ do
             pcall(function() setfflag("DebugRunParallelLuaOnMainThread", "True") end)
             if queue_on_teleport then
                 pcall(function()
-                    queue_on_teleport('loadstring(game:HttpGet("' .. BASE_URL .. 'loader.lua"))()')
+                    queue_on_teleport('getgenv()._WapusFflagTried=true; loadstring(game:HttpGet("' .. BASE_URL .. 'loader.lua"))()')
                 end)
             end
             task.wait(0.5)
