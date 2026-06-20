@@ -7,7 +7,7 @@ LPH_JIT_MAX = LPH_NO_VIRTUALIZE
 
 local devMode = true
 local defaultUIName = "Wapus" -- $$$
-local folderName = "Phantom Forces"
+local folderName = "banknote/pf"
 local connectionList = {}
 local callbackList = {}
 local playerStatus = {}
@@ -21,7 +21,7 @@ local wapus
 local userName = game:GetService("Players").LocalPlayer.Name
 local fileName = tostring(game.JobId) .. ".txt"
 if isfolder(folderName) and isfolder(folderName .. "/cache") and isfolder(folderName .. "/cache/votekick data") and isfile(folderName .. "/cache/votekick data/" .. fileName) and readfile(folderName .. "/cache/votekick data/" .. fileName) ~= userName then
-    local hostName = readfile("Phantom Forces Cheat/cache/votekick data/" .. tostring(game.JobId) .. ".txt")
+    local hostName = readfile(folderName .. "/cache/votekick data/" .. tostring(game.JobId) .. ".txt")
     local modules, require_module
 
     for _, func in getgc(false) do
@@ -6038,6 +6038,8 @@ LPH_NO_VIRTUALIZE(function() -- Make UI
 
             table.insert(soundFileList, "None")
 
+            pcall(function()
+            if not isfolder(folderName .. "/sounds") then return end
             for _, name in listfiles(folderName .. "/sounds") do
                 --name = string.gsub(string.gsub(string.gsub(name, folderName .. "/sounds", ""), folderName .. [[\\]], ""), folderName .. "/", "") -- this so gay niggeret
                 local fileNames = string.split(name, "sounds")
@@ -6048,11 +6050,14 @@ LPH_NO_VIRTUALIZE(function() -- Make UI
                     customAudios[name] = getcustomasset(folderName .. "/sounds/" .. name)
                 end
             end
+            end)
 
             for i = 1, #chatListsFiles do
                 chatListsFiles[i] = nil
             end
 
+            pcall(function()
+            if not isfolder(folderName .. "/chat spam lists") then return end
             for _, name in listfiles(folderName .. "/chat spam lists") do
                 name = string.gsub(string.gsub(name, folderName .. "/chat spam lists/", ""), folderName .. "\\chat spam lists\\", "")
                 table.insert(chatListsFiles, name)
@@ -6061,6 +6066,7 @@ LPH_NO_VIRTUALIZE(function() -- Make UI
                     chatSpamLists[name] = httpService:JSONDecode(readfile(folderName .. "/chat spam lists/" .. name))
                 end
             end
+            end)
 
             task.wait(3)
         end

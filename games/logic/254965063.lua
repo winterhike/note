@@ -111,14 +111,18 @@ do
             warn("[banknote/PF] wapus.lua COMPILE error:", compileErr)
         else
             log("wapus.lua compiled - executing ...")
-            -- wipe wapus' saved preset BEFORE it loads so no preset is applied
-            -- (it auto-loads Phantom Forces/cache/lastfile.json on init).
+            -- Contain wapus' files inside the banknote folder and start clean:
+            -- pre-create its dirs (prevents "directory does not exist") and wipe
+            -- any saved preset so wapus boots on built-in defaults only.
             pcall(function()
-                local p = "Phantom Forces/cache/lastfile.json"
-                if isfile and isfile(p) then
-                    writefile(p, "{}")
-                    log("cleared saved preset (lastfile.json)")
+                local root = "banknote/pf"
+                local dirs = { "banknote", root, root .. "/cache", root .. "/configs",
+                    root .. "/sounds", root .. "/chat spam lists", root .. "/cache/votekick data" }
+                for _, d in ipairs(dirs) do
+                    if not isfolder(d) then pcall(makefolder, d) end
                 end
+                writefile(root .. "/cache/lastfile.json", "{}")
+                log("prepared clean banknote/pf config")
             end)
             local okRun, runErr = pcall(fn)
             if not okRun then
@@ -242,7 +246,10 @@ do
         if type(sec) == "table" and sec.flags then
             for _, flag in pairs(sec.flags) do
                 if type(flag) == "table" then
-                    if flag.type == "toggle" and flag.value == true then
+                    if flag.type == "toggle" then
+                        -- force every toggle OFF (even already-off ones): some
+                        -- visuals like the FOV circles are drawn visible at
+                        -- creation and only hide when the toggle callback runs.
                         pcall(function() flag:SetValue(false) end)
                         resetCount = resetCount + 1
                     elseif flag.type == "slider" and flag.default ~= nil and flag.value ~= flag.default then

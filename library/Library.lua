@@ -38,7 +38,7 @@ local Library = {
     Flags = { },
     MenuKeybind = tostring(Enum.KeyCode.X), -- has to be a string
 
-    Directory = "juanitaaaaaaa",
+    Directory = "banknote/ui",
     Folders = {
         Assets = "/Assets",
         Configs = "/Configs",
