@@ -222,6 +222,46 @@ local function toKeyCode(v)
 end
 
 --======================================================================
+-- 4b. Clean slate: wapus loads a saved PRESET on init (random toggles on,
+-- which also caused the chatSpam error). Turn every toggle off and reset
+-- sliders to their defaults, then apply a curated banknote default config.
+--======================================================================
+do
+    log("resetting wapus preset to a clean state ...")
+    local resetCount = 0
+    for _, sec in pairs(wapus.sectionIndexes) do
+        if type(sec) == "table" and sec.flags then
+            for _, flag in pairs(sec.flags) do
+                if type(flag) == "table" then
+                    if flag.type == "toggle" and flag.value == true then
+                        pcall(function() flag:SetValue(false) end)
+                        resetCount = resetCount + 1
+                    elseif flag.type == "slider" and flag.default ~= nil and flag.value ~= flag.default then
+                        pcall(function() flag:SetValue(flag.default) end)
+                    end
+                end
+            end
+        end
+    end
+
+    -- curated default config (everything else stays OFF; user opts in)
+    local function setF(secName, name, val)
+        local sec = wapus.sectionIndexes[secName]
+        if sec and sec.flags and sec.flags[name] then
+            pcall(function() sec.flags[name]:SetValue(val) end)
+        end
+    end
+    -- clean, low-risk legit baseline: enemy ESP only
+    setF("Enemy ESP", "Enabled", true)
+    setF("Enemy ESP", "Boxes", true)
+    setF("Enemy ESP", "Names", true)
+    setF("Enemy ESP", "Health Bar", true)
+    setF("Enemy ESP", "Distances", true)
+
+    log("clean config applied (" .. resetCount .. " toggles cleared)")
+end
+
+--======================================================================
 -- 5. Build the banknote window from the live wapus menu
 --======================================================================
 local window = BN:Window({ Name = "$$ banknote: Phantom Forces $$" })
