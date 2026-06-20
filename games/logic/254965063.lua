@@ -1,21 +1,21 @@
 --======================================================================
 -- $$ banknote $$  -  Phantom Forces (PlaceId 254965063)
--- Full feature integration of the "wapus" Phantom Forces codebase, rendered
+-- Full feature integration of the "helper" Phantom Forces codebase, rendered
 -- entirely through the banknote (juanitahaxx) UI library.
 --
--- Approach (mirrors the established shim pattern, adapted to wapus' custom
--- Drawing-based UI): run wapus.lua intact, hide its own Drawing menu, then
+-- Approach (mirrors the established shim pattern, adapted to helper' custom
+-- Drawing-based UI): run helper.lua intact, hide its own Drawing menu, then
 -- walk its live menu structure (tabs -> sections -> elements) and rebuild
 -- every control inside banknote. Each banknote control drives the matching
--- wapus element via element:SetValue(v), which fires wapus' real feature
--- callback. Nothing about wapus' feature logic is reimplemented.
+-- helper element via element:SetValue(v), which fires helper' real feature
+-- callback. Nothing about helper' feature logic is reimplemented.
 --======================================================================
 -- allow re-execution within the same session (re-running the loader): tear
 -- down a previous integration's menu guard so we don't stack heartbeats.
-if getgenv()._WapusMenuGuard then
-    pcall(function() getgenv()._WapusMenuGuard:Disconnect() end)
+if getgenv()._HelperMenuGuard then
+    pcall(function() getgenv()._HelperMenuGuard:Disconnect() end)
 end
-getgenv()._WapusBanknoteLoaded = true
+getgenv()._HelperBanknoteLoaded = true
 
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 
@@ -35,10 +35,10 @@ local function log(...) print("[banknote/PF]", ...) end
 --
 -- Phantom Forces runs its client code in parallel-Luau Actors. On a normal
 -- join the cheat engine can't see PF's modules from the main thread (getgc
--- returns nothing useful), which is exactly what we hit. The official wapus
+-- returns nothing useful), which is exactly what we hit. The official helper
 -- loader fixes this by enabling the DebugRunParallelLuaOnMainThread fast flag
 -- and rejoining; after that, PF's parallel Lua runs on the main thread and
--- everything (wapus + the banknote UI) lives in one VM.
+-- everything (helper + the banknote UI) lives in one VM.
 --======================================================================
 do
     local function parallelOnMain()
@@ -50,16 +50,16 @@ do
 
     local pom = parallelOnMain()
     if pom ~= true then
-        if getgenv()._WapusFflagTried then
+        if getgenv()._HelperFflagTried then
             warn("[banknote/PF] parallel-Lua-on-main still off after rejoin; proceeding best-effort")
         elseif setfflag then
-            getgenv()._WapusFflagTried = true
+            getgenv()._HelperFflagTried = true
             log("enabling DebugRunParallelLuaOnMainThread + rejoining ...")
             notify("Phantom Forces: enabling cheat engine, rejoining...")
             pcall(function() setfflag("DebugRunParallelLuaOnMainThread", "True") end)
             if queue_on_teleport then
                 pcall(function()
-                    queue_on_teleport('getgenv()._WapusFflagTried=true; loadstring(game:HttpGet("' .. BASE_URL .. 'loader.lua"))()')
+                    queue_on_teleport('getgenv()._HelperFflagTried=true; loadstring(game:HttpGet("' .. BASE_URL .. 'loader.lua"))()')
                 end)
             end
             task.wait(0.5)
@@ -74,10 +74,10 @@ do
     end
 end
 
--- Resolve an always-fresh URL for wapus.lua. raw.githubusercontent.com caches
+-- Resolve an always-fresh URL for helper.lua. raw.githubusercontent.com caches
 -- the master branch for ~5 min and ignores ?_= cache-busters, so we pin to the
 -- latest commit SHA (commit-pinned raw URLs are immutable and never stale).
-local function wapusURL()
+local function helperURL()
     local okSha, body = pcall(function()
         return game:HttpGet("https://api.github.com/repos/endmylifehahahahahahahahaha/banknote-hub/commits/master")
     end)
@@ -93,27 +93,27 @@ local function wapusURL()
 end
 
 --======================================================================
--- 1. Run the wapus codebase intact
+-- 1. Run the helper codebase intact
 --======================================================================
 do
-    log("fetching wapus.lua ...")
-    local url = wapusURL()
+    log("fetching helper.lua ...")
+    local url = helperURL()
     local src
     local okFetch, fetchErr = pcall(function()
         src = game:HttpGet(url)
     end)
     if not okFetch or type(src) ~= "string" or #src < 1000 then
-        warn("[banknote/PF] wapus.lua fetch failed:", fetchErr, "len:", src and #src)
+        warn("[banknote/PF] helper.lua fetch failed:", fetchErr, "len:", src and #src)
     else
-        log("wapus.lua fetched, bytes:", #src, "- compiling ...")
+        log("helper.lua fetched, bytes:", #src, "- compiling ...")
         local fn, compileErr = loadstring(src)
         if not fn then
-            warn("[banknote/PF] wapus.lua COMPILE error:", compileErr)
+            warn("[banknote/PF] helper.lua COMPILE error:", compileErr)
         else
-            log("wapus.lua compiled - executing ...")
-            -- Contain wapus' files inside the banknote folder and start clean:
+            log("helper.lua compiled - executing ...")
+            -- Contain helper' files inside the banknote folder and start clean:
             -- pre-create its dirs (prevents "directory does not exist") and wipe
-            -- any saved preset so wapus boots on built-in defaults only.
+            -- any saved preset so helper boots on built-in defaults only.
             pcall(function()
                 local root = "banknote/pf"
                 local dirs = { "banknote", root, root .. "/cache", root .. "/configs",
@@ -126,58 +126,58 @@ do
             end)
             local okRun, runErr = pcall(fn)
             if not okRun then
-                warn("[banknote/PF] wapus.lua RUNTIME error:", runErr)
+                warn("[banknote/PF] helper.lua RUNTIME error:", runErr)
             else
-                log("wapus.lua executed ok")
+                log("helper.lua executed ok")
             end
         end
     end
 end
 
 --======================================================================
--- 2. Resolve the wapus object + its built menu
+-- 2. Resolve the helper object + its built menu
 --======================================================================
-local wapus
+local helper
 do
     local deadline = tick() + 15
     repeat
-        wapus = (getgenv and getgenv().wapus) or (rawget and rawget(getfenv(), "wapus"))
-        if wapus and wapus.menus and wapus.menus[1] and wapus.menus[1].tabs and #wapus.menus[1].tabs > 0 then
+        helper = (getgenv and getgenv().helper) or (rawget and rawget(getfenv(), "helper"))
+        if helper and helper.menus and helper.menus[1] and helper.menus[1].tabs and #helper.menus[1].tabs > 0 then
             break
         end
         task.wait(0.1)
     until tick() > deadline
 end
 
-if not wapus then
-    warn("[banknote/PF] getgenv().wapus is nil - wapus did not export its object")
-    notify("Phantom Forces: failed to hook wapus (no object)")
+if not helper then
+    warn("[banknote/PF] getgenv().helper is nil - helper did not export its object")
+    notify("Phantom Forces: failed to hook helper (no object)")
     return
 end
-if not (wapus.menus and wapus.menus[1]) then
-    warn("[banknote/PF] wapus.menus[1] missing - menu was not created")
-    notify("Phantom Forces: failed to hook wapus (no menu)")
+if not (helper.menus and helper.menus[1]) then
+    warn("[banknote/PF] helper.menus[1] missing - menu was not created")
+    notify("Phantom Forces: failed to hook helper (no menu)")
     return
 end
-if not (wapus.menus[1].tabs and #wapus.menus[1].tabs > 0) then
-    warn("[banknote/PF] wapus menu has no tabs")
+if not (helper.menus[1].tabs and #helper.menus[1].tabs > 0) then
+    warn("[banknote/PF] helper menu has no tabs")
 end
 
-local menu = wapus.menus[1]
-log("hooked wapus menu, tabs:", #(menu.tabs or {}))
+local menu = helper.menus[1]
+log("hooked helper menu, tabs:", #(menu.tabs or {}))
 
 --======================================================================
--- 3. Hide the wapus Drawing menu (keep feature visuals intact)
+-- 3. Hide the helper Drawing menu (keep feature visuals intact)
 --======================================================================
 do
-    -- move the wapus menu toggle off a common key so it can't pop the
+    -- move the helper menu toggle off a common key so it can't pop the
     -- Drawing UI back open over the banknote UI.
     pcall(function()
-        if Enum.KeyCode.Pause then wapus.toggleKeybind = "Pause" end
+        if Enum.KeyCode.Pause then helper.toggleKeybind = "Pause" end
     end)
 
     local function hideMenuChrome()
-        for _, m in ipairs(wapus.menus) do
+        for _, m in ipairs(helper.menus) do
             m.open = false
             if m.drawCache then
                 for _, d in ipairs(m.drawCache) do
@@ -192,22 +192,22 @@ do
         end
     end
 
-    wapus.open = false
+    helper.open = false
     hideMenuChrome()
 
     -- guard against the menu being re-shown (toggle key / config load)
     local conn
     conn = RunService.Heartbeat:Connect(function()
-        if wapus.open then
-            wapus.open = false
+        if helper.open then
+            helper.open = false
             hideMenuChrome()
         end
     end)
-    getgenv()._WapusMenuGuard = conn
+    getgenv()._HelperMenuGuard = conn
 end
 
 --======================================================================
--- 4. Helpers to walk + drive the wapus menu
+-- 4. Helpers to walk + drive the helper menu
 --======================================================================
 local function elName(el)
     if el.name then return el.name end
@@ -215,7 +215,7 @@ local function elName(el)
     return "?"
 end
 
--- left/right side of a wapus section, derived from its panel X position
+-- left/right side of a helper section, derived from its panel X position
 local sbgX = nil
 pcall(function() sbgX = menu.sectionbg and menu.sectionbg.Position.X end)
 local function sideOf(mainSection)
@@ -235,14 +235,14 @@ local function toKeyCode(v)
 end
 
 --======================================================================
--- 4b. Clean slate: wapus loads a saved PRESET on init (random toggles on,
+-- 4b. Clean slate: helper loads a saved PRESET on init (random toggles on,
 -- which also caused the chatSpam error). Turn every toggle off and reset
 -- sliders to their defaults, then apply a curated banknote default config.
 --======================================================================
 do
-    log("resetting wapus preset to a clean state ...")
+    log("resetting helper preset to a clean state ...")
     local resetCount = 0
-    for _, sec in pairs(wapus.sectionIndexes) do
+    for _, sec in pairs(helper.sectionIndexes) do
         if type(sec) == "table" and sec.flags then
             for _, flag in pairs(sec.flags) do
                 if type(flag) == "table" then
@@ -262,7 +262,7 @@ do
 
     -- curated default config (everything else stays OFF; user opts in)
     local function setF(secName, name, val)
-        local sec = wapus.sectionIndexes[secName]
+        local sec = helper.sectionIndexes[secName]
         if sec and sec.flags and sec.flags[name] then
             pcall(function() sec.flags[name]:SetValue(val) end)
         end
@@ -273,14 +273,14 @@ do
 end
 
 --======================================================================
--- 5. Build the banknote window from the live wapus menu
+-- 5. Build the banknote window from the live helper menu
 --======================================================================
 local window = BN:Window({ Name = "$$ banknote: Phantom Forces $$" })
 log("banknote window created:", window ~= nil)
 pcall(function() window:Watermark({ Name = "$$ banknote $$" }) end)
 pcall(function() window:KeybindList() end)
 
--- flags must be globally unique (wapus reuses element names like "Enabled",
+-- flags must be globally unique (helper reuses element names like "Enabled",
 -- "Use FOV", "FOV Radius" across many sections); key by section + name.
 local function mkFlag(prefix, prefix2, name)
     return (prefix .. "_" .. prefix2 .. "_" .. name):gsub("%s+", "_")
@@ -308,7 +308,7 @@ local function buildElement(bnSection, el, secName)
                 end)
             end
         end
-        -- NOTE: we deliberately do NOT chain wapus' menu-hotkey keybinds here.
+        -- NOTE: we deliberately do NOT chain helper' menu-hotkey keybinds here.
         -- banknote fires a keybind's callback at build time, which flipped the
         -- just-reset toggle back ON (re-enabling the whole preset). Features are
         -- controlled via the toggle itself instead.
@@ -367,7 +367,7 @@ for _, tab in ipairs(menu.tabs) do
     local tabName = "Tab"
     pcall(function() tabName = tab.title and tab.title.Text or tabName end)
 
-    -- banknote provides its own settings page; skip wapus' config/settings tab
+    -- banknote provides its own settings page; skip helper' config/settings tab
     if tostring(tabName):lower() ~= "settings" then
         local page
         local okPage = pcall(function() page = window:Page({ Name = tabName }) end)
@@ -398,14 +398,14 @@ if not okInit then warn("[banknote/PF] window:Init() error:", initErr) end
 log("window:Init() done:", okInit)
 
 --======================================================================
--- 6. Clean unload: fire wapus' own Unload button when banknote exits
+-- 6. Clean unload: fire helper' own Unload button when banknote exits
 --======================================================================
 do
-    local function fireWapusUnload()
+    local function fireHelperUnload()
         -- 1. turn every feature OFF so each feature's own callback reverts its
         -- visuals (ESP drawings, chams, world lighting, crosshair, etc.).
         pcall(function()
-            for _, sec in pairs(wapus.sectionIndexes) do
+            for _, sec in pairs(helper.sectionIndexes) do
                 if type(sec) == "table" and sec.flags then
                     for _, flag in pairs(sec.flags) do
                         if type(flag) == "table" and flag.type == "toggle" and flag.value == true then
@@ -415,9 +415,9 @@ do
                 end
             end
         end)
-        -- 2. fire wapus' own Unload button (unloadMain) for full teardown
+        -- 2. fire helper' own Unload button (unloadMain) for full teardown
         pcall(function()
-            local sec = wapus.sectionIndexes and wapus.sectionIndexes["Cheat Settings"]
+            local sec = helper.sectionIndexes and helper.sectionIndexes["Cheat Settings"]
             if sec and sec.elements then
                 for _, el in ipairs(sec.elements) do
                     if el.type == "button" and el.text and el.text.Text == "Unload" and el.callback then
@@ -427,22 +427,22 @@ do
                 end
             end
         end)
-        -- 3. nuke any leftover wapus drawings + the menu guard
+        -- 3. nuke any leftover helper drawings + the menu guard
         pcall(function() if cleardrawcache then cleardrawcache() end end)
         pcall(function()
-            if getgenv()._WapusMenuGuard then getgenv()._WapusMenuGuard:Disconnect() end
+            if getgenv()._HelperMenuGuard then getgenv()._HelperMenuGuard:Disconnect() end
         end)
-        getgenv()._WapusBanknoteLoaded = nil
+        getgenv()._HelperBanknoteLoaded = nil
     end
 
     local realExit = BN.Exit
     if realExit then
         BN.Exit = function(self, ...)
-            fireWapusUnload()
+            fireHelperUnload()
             return realExit(self, ...)
         end
     end
-    BN.OnUnload = fireWapusUnload
+    BN.OnUnload = fireHelperUnload
 end
 
 notify("Phantom Forces loaded into banknote")

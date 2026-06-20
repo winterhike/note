@@ -6,7 +6,7 @@ end
 LPH_JIT_MAX = LPH_NO_VIRTUALIZE
 
 local devMode = true
-local defaultUIName = "Wapus" -- $$$
+local defaultUIName = "Helper" -- $$$
 local folderName = "banknote/pf"
 local connectionList = {}
 local callbackList = {}
@@ -15,7 +15,7 @@ local chatSpamLists = {}
 local customAudios = {}
 local cham = {}
 local unloadMain
-local wapus
+local helper
 
 -- anti votekick bot code
 local userName = game:GetService("Players").LocalPlayer.Name
@@ -116,7 +116,7 @@ do -- Drawing Library
         ZIndex = 1
     }
 
-    local defaults = { -- benefit of remaking it is to have a uniform drawing api across all executors because the wapus ui was originally made with krampus' drawing api
+    local defaults = { -- benefit of remaking it is to have a uniform drawing api across all executors because the helper ui was originally made with krampus' drawing api
         Square = {
             Position = nv,
             Size = nv,
@@ -1116,7 +1116,7 @@ do -- UI Library
     local TEXTBOX = 14
     --real
 
-    wapus = {
+    helper = {
         toggleKeybind = "RightShift",
         theme = {
             accent = Color3.fromRGB(127, 72, 163), -- Color3.fromRGB(23, 122, 179)
@@ -1134,10 +1134,10 @@ do -- UI Library
         GetValue = function() end
     }
 
-    -- $$ banknote $$ early export: expose the wapus object the moment it exists
-    -- so the banknote integration can still reach wapus.menus[1] even if a
-    -- later part of wapus' init throws after the menu has been built.
-    if getgenv then getgenv().wapus = wapus end
+    -- $$ banknote $$ early export: expose the helper object the moment it exists
+    -- so the banknote integration can still reach helper.menus[1] even if a
+    -- later part of helper' init throws after the menu has been built.
+    if getgenv then getgenv().helper = helper end
 
     local hueData = "rbxassetid://18403604225"
     local valueData = "rbxassetid://18403602548"
@@ -1153,14 +1153,14 @@ do -- UI Library
     local insert = table.insert
 
     --local customFont = Drawing.new("Font", "EpilepsySans") -- cant find a free SpaceMace ttf file but thats what bbot v2 used origionally
-    --customFont.Data = wapus.theme.fontData
+    --customFont.Data = helper.theme.fontData
     local defaultProperties = {
         Filled = true,
         Outline = true,
         Transparency = 1,
         NumSides = 64,
         Visible = false,
-        Font = wapus.useCustomFont and customFont or nil
+        Font = helper.useCustomFont and customFont or nil
     }
     local themed = {
         accent = {},
@@ -1312,10 +1312,10 @@ do -- UI Library
         textbox.callback = callback
         textbox.SetValue = setTextValue
         textbox.height = 34
-        textbox.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 15), Size = v2(213, 18), Color = wapus.theme.outline, Visible = visible}, "outline")
-        textbox.button = modifyDrawing(self.menu:gradient({wapus.theme.lightbackground, wapus.theme.background}, 6), {Position = textbox.buttonoutline.Position + v2(1, 1), Size = v2(211, 16), Color = wapus.theme.background, Visible = visible})
-        textbox.text = self.menu:draw("Text", {Position = textbox.buttonoutline.Position + v2(2, -16), Size = 14, Color = wapus.theme.text, Text = text, Visible = visible}, "text")
-        textbox.valuetext = self.menu:draw("Text", {Position = textbox.button.Position + v2(6, 0), Size = 14, Color = wapus.theme.text, Text = textbox.value, Visible = visible}, "text")
+        textbox.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 15), Size = v2(213, 18), Color = helper.theme.outline, Visible = visible}, "outline")
+        textbox.button = modifyDrawing(self.menu:gradient({helper.theme.lightbackground, helper.theme.background}, 6), {Position = textbox.buttonoutline.Position + v2(1, 1), Size = v2(211, 16), Color = helper.theme.background, Visible = visible})
+        textbox.text = self.menu:draw("Text", {Position = textbox.buttonoutline.Position + v2(2, -16), Size = 14, Color = helper.theme.text, Text = text, Visible = visible}, "text")
+        textbox.valuetext = self.menu:draw("Text", {Position = textbox.button.Position + v2(6, 0), Size = 14, Color = helper.theme.text, Text = textbox.value, Visible = visible}, "text")
         self.bgOffset += v2(0, textbox.height)
         insert(self.elements, textbox)
         return textbox
@@ -1328,9 +1328,9 @@ do -- UI Library
         button.type = "button"
         button.callback = callback
         button.height = 23
-        button.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 3), Size = v2(213, 18), Color = wapus.theme.outline, Visible = visible}, "outline")
-        button.button = modifyDrawing(self.menu:gradient({wapus.theme.lightbackground, wapus.theme.background}, 6), {Position = button.buttonoutline.Position + v2(1, 1), Size = v2(211, 16), Color = wapus.theme.background, Visible = visible})
-        button.text = self.menu:draw("Text", {Position = button.button.Position + v2(106, 0), Center = true, Size = 14, Color = wapus.theme.text, Text = text, Visible = visible}, "text")
+        button.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 3), Size = v2(213, 18), Color = helper.theme.outline, Visible = visible}, "outline")
+        button.button = modifyDrawing(self.menu:gradient({helper.theme.lightbackground, helper.theme.background}, 6), {Position = button.buttonoutline.Position + v2(1, 1), Size = v2(211, 16), Color = helper.theme.background, Visible = visible})
+        button.text = self.menu:draw("Text", {Position = button.button.Position + v2(106, 0), Center = true, Size = 14, Color = helper.theme.text, Text = text, Visible = visible}, "text")
         self.bgOffset += v2(0, button.height)
         insert(self.elements, button)
         return button
@@ -1356,11 +1356,11 @@ do -- UI Library
         dropdown.callback = callback
         dropdown.SetValue = setDropValue
         dropdown.height = 34
-        dropdown.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 15), Size = v2(213, 18), Color = wapus.theme.outline, Visible = visible}, "outline")
-        dropdown.button = modifyDrawing(self.menu:gradient({wapus.theme.lightbackground, wapus.theme.background}, 6), {Position = dropdown.buttonoutline.Position + v2(1, 1), Size = v2(211, 16), Color = wapus.theme.background, Visible = visible})
-        dropdown.text = self.menu:draw("Text", {Position = dropdown.buttonoutline.Position + v2(2, -16), Size = 14, Color = wapus.theme.text, Text = text, Visible = visible}, "text")
-        dropdown.valuetext = self.menu:draw("Text", {Position = dropdown.button.Position + v2(6, 0), Size = 14, Color = wapus.theme.text, Text = dropdown.value, Visible = visible}, "text")
-        dropdown.droptext = self.menu:draw("Text", {Position = dropdown.button.Position + v2(200, 2), Size = 14, Color = wapus.theme.text, Text = "-", Visible = visible}, "text")
+        dropdown.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 15), Size = v2(213, 18), Color = helper.theme.outline, Visible = visible}, "outline")
+        dropdown.button = modifyDrawing(self.menu:gradient({helper.theme.lightbackground, helper.theme.background}, 6), {Position = dropdown.buttonoutline.Position + v2(1, 1), Size = v2(211, 16), Color = helper.theme.background, Visible = visible})
+        dropdown.text = self.menu:draw("Text", {Position = dropdown.buttonoutline.Position + v2(2, -16), Size = 14, Color = helper.theme.text, Text = text, Visible = visible}, "text")
+        dropdown.valuetext = self.menu:draw("Text", {Position = dropdown.button.Position + v2(6, 0), Size = 14, Color = helper.theme.text, Text = dropdown.value, Visible = visible}, "text")
+        dropdown.droptext = self.menu:draw("Text", {Position = dropdown.button.Position + v2(200, 2), Size = 14, Color = helper.theme.text, Text = "-", Visible = visible}, "text")
         self.bgOffset += v2(0, dropdown.height)
         insert(self.elements, dropdown)
         return dropdown
@@ -1393,11 +1393,11 @@ do -- UI Library
         slider.height = 27
         slider.value = slider.default
         local ratio = (slider.default - slider.min) / (slider.max - slider.min)
-        slider.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 16), Size = v2(213, 11), Color = wapus.theme.outline, Visible = visible}, "outline")
-        slider.button = modifyDrawing(self.menu:gradient({wapus.theme.lightbackground, wapus.theme.background}, 3), {Position = slider.buttonoutline.Position + v2(1, 1), Size = v2(211, 9), Color = wapus.theme.background, Visible = visible})
-        slider.highlight = modifyDrawing(self.menu:gradient({wapus.theme.accent, darken(wapus.theme.accent, 0.25)}, 3), {Position = slider.button.Position, Size = v2(math.clamp(ratio * 211, 0, 211), 9), Color = wapus.theme.accent, Visible = visible})
-        slider.text = self.menu:draw("Text", {Position = slider.buttonoutline.Position + v2(2, -15), Size = 14, Color = wapus.theme.text, Text = text, Visible = visible}, "text")
-        slider.valuetext = self.menu:draw("Text", {Position = slider.button.Position + v2(106, -3), Size = 14, Center = true, Color = wapus.theme.text, Text = tostring(default) .. slider.suffix, Visible = visible}, "text")
+        slider.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 16), Size = v2(213, 11), Color = helper.theme.outline, Visible = visible}, "outline")
+        slider.button = modifyDrawing(self.menu:gradient({helper.theme.lightbackground, helper.theme.background}, 3), {Position = slider.buttonoutline.Position + v2(1, 1), Size = v2(211, 9), Color = helper.theme.background, Visible = visible})
+        slider.highlight = modifyDrawing(self.menu:gradient({helper.theme.accent, darken(helper.theme.accent, 0.25)}, 3), {Position = slider.button.Position, Size = v2(math.clamp(ratio * 211, 0, 211), 9), Color = helper.theme.accent, Visible = visible})
+        slider.text = self.menu:draw("Text", {Position = slider.buttonoutline.Position + v2(2, -15), Size = 14, Color = helper.theme.text, Text = text, Visible = visible}, "text")
+        slider.valuetext = self.menu:draw("Text", {Position = slider.button.Position + v2(106, -3), Size = 14, Center = true, Color = helper.theme.text, Text = tostring(default) .. slider.suffix, Visible = visible}, "text")
         slider.callback = callback
         slider.SetValue = setSliderValue
         self.bgOffset += v2(0, slider.height)
@@ -1426,13 +1426,13 @@ do -- UI Library
         if name then
             self.section.flags[name] = color
         end
-        default = default or wapus.theme.accent
+        default = default or helper.theme.accent
         color.name = name or "Color"
         color.callback = callback
         color.toggle = self
         color.value = default
         color.AddColorPicker = addColorToToggle
-        color.buttonoutline = self.menu:draw("Square", {Position = self.buttonoutline.Position + v2(187 - self.additions, 1), Size = v2(26, 12), Color = wapus.theme.outline, Visible = visible}, "outline")
+        color.buttonoutline = self.menu:draw("Square", {Position = self.buttonoutline.Position + v2(187 - self.additions, 1), Size = v2(26, 12), Color = helper.theme.outline, Visible = visible}, "outline")
         color.buttonbackground = self.menu:draw("Square", {Position = color.buttonoutline.Position + v2(1, 1), Size = v2(24, 10), Color = darken(default, 0.4), Visible = visible}, "accent")
         color.button = self.menu:draw("Square", {Position = color.buttonoutline.Position + v2(3, 3), Size = v2(20, 6), Color = default, Visible = visible}, "accent")
         color.SetValue = setColorValue
@@ -1488,9 +1488,9 @@ do -- UI Library
             keybind.value = default
             keybind.menu = self.menu
             keybind.AddColorPicker = addColorToToggle
-            keybind.buttonoutline = self.menu:draw("Square", {Position = self.buttonoutline.Position + v2(171 - self.additions, 0), Size = v2(42, 14), Color = wapus.theme.outline, Visible = visible}, "outline")
-            keybind.button = self.menu:draw("Square", {Position = keybind.buttonoutline.Position + v2(1, 1), Size = v2(40, 12), Color = wapus.theme.hidden, Visible = visible}, "hidden")
-            keybind.text = self.menu:draw("Text", {Position = keybind.button.Position + v2(21, -2), Size = 14, Color = wapus.theme.text, Text = default, Center = true, Visible = visible}, "text")
+            keybind.buttonoutline = self.menu:draw("Square", {Position = self.buttonoutline.Position + v2(171 - self.additions, 0), Size = v2(42, 14), Color = helper.theme.outline, Visible = visible}, "outline")
+            keybind.button = self.menu:draw("Square", {Position = keybind.buttonoutline.Position + v2(1, 1), Size = v2(40, 12), Color = helper.theme.hidden, Visible = visible}, "hidden")
+            keybind.text = self.menu:draw("Text", {Position = keybind.button.Position + v2(21, -2), Size = 14, Color = helper.theme.text, Text = default, Center = true, Visible = visible}, "text")
             keybind.SetValue = setKeybindValue
             self.keybind = keybind
             self.additions += 49
@@ -1506,7 +1506,7 @@ do -- UI Library
 
     local function setToggleValue(self, value)
         self.value = value
-        self.button:SetColor(value and {wapus.theme.accent, darken(wapus.theme.accent, 0.25)} or {wapus.theme.lightbackground, wapus.theme.background})
+        self.button:SetColor(value and {helper.theme.accent, darken(helper.theme.accent, 0.25)} or {helper.theme.lightbackground, helper.theme.background})
 
         if self.callback then
             self.callback(value)
@@ -1532,17 +1532,17 @@ do -- UI Library
         toggle.height = 15
         toggle.additions = 0
         toggle.value = default == true
-        toggle.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 3), Size = v2(11, 11), Color = wapus.theme.outline, Visible = visible}, "outline")
-        --toggle.button = self.menu:draw("Square", {Position = toggle.buttonoutline.Position + v2(1, 1), Size = v2(9, 9), Color = default and wapus.theme.accent or wapus.theme.background, Visible = visible}, "background")
-        toggle.button = modifyDrawing(self.menu:gradient({wapus.theme.accent, darken(wapus.theme.accent, 0.25)}, 3), {Position = toggle.buttonoutline.Position + v2(1, 1), Size = v2(9, 9), Color = default and wapus.theme.accent or wapus.theme.background, Visible = visible})
-        toggle.text = self.menu:draw("Text", {Position = toggle.buttonoutline.Position + v2(16, -2), Size = 14, Color = wapus.theme.text, Text = text, Visible = visible}, "text")
+        toggle.buttonoutline = self.menu:draw("Square", {Position = container + v2(0, 3), Size = v2(11, 11), Color = helper.theme.outline, Visible = visible}, "outline")
+        --toggle.button = self.menu:draw("Square", {Position = toggle.buttonoutline.Position + v2(1, 1), Size = v2(9, 9), Color = default and helper.theme.accent or helper.theme.background, Visible = visible}, "background")
+        toggle.button = modifyDrawing(self.menu:gradient({helper.theme.accent, darken(helper.theme.accent, 0.25)}, 3), {Position = toggle.buttonoutline.Position + v2(1, 1), Size = v2(9, 9), Color = default and helper.theme.accent or helper.theme.background, Visible = visible})
+        toggle.text = self.menu:draw("Text", {Position = toggle.buttonoutline.Position + v2(16, -2), Size = 14, Color = helper.theme.text, Text = text, Visible = visible}, "text")
         toggle.AddKeyBind = addKeybindToToggle
         toggle.AddColorPicker = addColorToToggle
         toggle.callback = callback
         toggle.SetValue = setToggleValue
         self.bgOffset += v2(0, toggle.height)
         insert(self.elements, toggle)
-        toggle.button:SetColor(not default and {wapus.theme.lightbackground, wapus.theme.background})
+        toggle.button:SetColor(not default and {helper.theme.lightbackground, helper.theme.background})
         return toggle
     end
 
@@ -1554,9 +1554,9 @@ do -- UI Library
         self.menu.sectionIndexes[text] = section
         section.background = mainSection.background
         section.index = #self.sections + 1
-        section.buttonoutline = self.menu:draw("Square", {Position = lastButton.Position + v2(lastButton.Size.X + 1, 0), Color = wapus.theme.outline, Visible = visible}, "outline")
-        section.button = self.menu:draw("Square", {Position = section.buttonoutline.Position + v2(0, 0), Color = wapus.theme.hidden, Visible = visible}, "hidden")
-        section.text = self.menu:draw("Text", {Size = 14, Color = wapus.theme.hiddenText, Center = true, Text = text, Visible = visible}, "text")
+        section.buttonoutline = self.menu:draw("Square", {Position = lastButton.Position + v2(lastButton.Size.X + 1, 0), Color = helper.theme.outline, Visible = visible}, "outline")
+        section.button = self.menu:draw("Square", {Position = section.buttonoutline.Position + v2(0, 0), Color = helper.theme.hidden, Visible = visible}, "hidden")
+        section.text = self.menu:draw("Text", {Size = 14, Color = helper.theme.hiddenText, Center = true, Text = text, Visible = visible}, "text")
         section.button.Size = v2(10 + section.text.TextBounds.X, 20)
         section.buttonoutline.Size = v2(11 + section.text.TextBounds.X, 21)
         section.text.Position = section.button.Position + v2(5 + section.text.TextBounds.X * 0.5, 4)
@@ -1582,21 +1582,21 @@ do -- UI Library
         local side = right and "right" or "left"
         self.menu.sectionIndexes[text] = section
         height = height == "half" and 257 or height == "whole" and 518 or height == "third" and 170 or height
-        section.outline = self.menu:draw("Square", {Size = v2(231, height), Position = self.menu.sectionbg.Position + v2(7 + (right and 235 or 0), 3 + self[side]), Color = wapus.theme.outline, Visible = visible}, "outline")
-        section.highlightoutline = self.menu:draw("Square", {Size = v2(229, 4), Position = section.outline.Position + v2(1, 1), Color = wapus.theme.outline, Visible = visible}, "outline")
-        section.highlight = modifyDrawing(self.menu:gradient({wapus.theme.accent:Lerp(Color3.new(1, 1, 1), 0.1), wapus.theme.accent, darken(wapus.theme.accent, 0.4)}, 3), {Size = v2(229, 3), Position = section.highlightoutline.Position, Color = wapus.theme.accent, Visible = visible})
-        section.buttons = self.menu:draw("Square", {Size = v2(229, 20), Position = section.highlightoutline.Position + v2(0, 4), Color = wapus.theme.hidden, Visible = visible}, "hidden")
-        section.buttonoutline = self.menu:draw("Square", {Position = section.highlightoutline.Position + v2(0, 4), Color = wapus.theme.outline, Visible = visible}, "outline")
-        section.button = self.menu:draw("Square", {Position = section.highlightoutline.Position + v2(0, 4), Color = wapus.theme.background, Visible = visible}, "background")
-        section.buttonbackground = modifyDrawing(self.menu:gradient({wapus.theme.lightbackground, wapus.theme.background}, 8), {Position = section.highlightoutline.Position + v2(0, 4), Color = wapus.theme.background, Visible = visible})
-        section.text = self.menu:draw("Text", {Size = 14, Color = wapus.theme.text, Center = true, Text = text, Visible = visible}, "text")
+        section.outline = self.menu:draw("Square", {Size = v2(231, height), Position = self.menu.sectionbg.Position + v2(7 + (right and 235 or 0), 3 + self[side]), Color = helper.theme.outline, Visible = visible}, "outline")
+        section.highlightoutline = self.menu:draw("Square", {Size = v2(229, 4), Position = section.outline.Position + v2(1, 1), Color = helper.theme.outline, Visible = visible}, "outline")
+        section.highlight = modifyDrawing(self.menu:gradient({helper.theme.accent:Lerp(Color3.new(1, 1, 1), 0.1), helper.theme.accent, darken(helper.theme.accent, 0.4)}, 3), {Size = v2(229, 3), Position = section.highlightoutline.Position, Color = helper.theme.accent, Visible = visible})
+        section.buttons = self.menu:draw("Square", {Size = v2(229, 20), Position = section.highlightoutline.Position + v2(0, 4), Color = helper.theme.hidden, Visible = visible}, "hidden")
+        section.buttonoutline = self.menu:draw("Square", {Position = section.highlightoutline.Position + v2(0, 4), Color = helper.theme.outline, Visible = visible}, "outline")
+        section.button = self.menu:draw("Square", {Position = section.highlightoutline.Position + v2(0, 4), Color = helper.theme.background, Visible = visible}, "background")
+        section.buttonbackground = modifyDrawing(self.menu:gradient({helper.theme.lightbackground, helper.theme.background}, 8), {Position = section.highlightoutline.Position + v2(0, 4), Color = helper.theme.background, Visible = visible})
+        section.text = self.menu:draw("Text", {Size = 14, Color = helper.theme.text, Center = true, Text = text, Visible = visible}, "text")
         section.button.Size = v2(10 + section.text.TextBounds.X, 21)
         section.buttonbackground.Size = section.button.Size
         section.buttonbackground.ZIndex = 2
         section.buttonoutline.Size = v2(11 + section.text.TextBounds.X, 21)
         section.text.Position = section.buttons.Position + v2(5 + section.text.TextBounds.X * 0.5, 4)
         section.text.ZIndex = 3
-        section.background = self.menu:draw("Square", {Size = v2(229, height - 27), Position = section.outline.Position + v2(1, 26), Color = wapus.theme.background, Visible = visible}, "background")
+        section.background = self.menu:draw("Square", {Size = v2(229, height - 27), Position = section.outline.Position + v2(1, 26), Color = helper.theme.background, Visible = visible}, "background")
         section.menu = self.menu
         section.tab = self
         section.name = text
@@ -1644,9 +1644,9 @@ do -- UI Library
                     local playerdrawings = drawings[playerIndex]
                     playerdrawings.name.Text = player.Name
                     playerdrawings.team.Text = isteamed and player.Team.Name or "None"
-                    playerdrawings.team.Color = isteamed and player.TeamColor.Color or wapus.theme.text
+                    playerdrawings.team.Color = isteamed and player.TeamColor.Color or helper.theme.text
                     playerdrawings.status.Text = islocal and "Local Player" or status[player] or "None"
-                    playerdrawings.status.Color = islocal and Color3.new(0.407843, 0, 0.87451) or wapus.theme.text
+                    playerdrawings.status.Color = islocal and Color3.new(0.407843, 0, 0.87451) or helper.theme.text
                 end
             end
         end
@@ -1725,59 +1725,59 @@ do -- UI Library
         playerlist.status = callbacks.status
         playerlist.votekick = callbacks.votekick
         playerlist.spectate = callbacks.spectate
-        playerlist.outline = self.menu:draw("Square", {Size = v2(231 + 235, height), Position = self.menu.sectionbg.Position + v2(7, 3), Color = wapus.theme.outline, Visible = visible}, "outline")
-        playerlist.highlightoutline = self.menu:draw("Square", {Size = v2(229 + 235, 4), Position = playerlist.outline.Position + v2(1, 1), Color = wapus.theme.outline, Visible = visible}, "outline")
-        playerlist.highlight = modifyDrawing(self.menu:gradient({wapus.theme.accent:Lerp(Color3.new(1, 1, 1), 0.1), wapus.theme.accent, darken(wapus.theme.accent, 0.4)}, 3), {Size = v2(229 + 235, 3), Position = playerlist.highlightoutline.Position, Color = wapus.theme.accent, Visible = visible})
-        playerlist.buttons = self.menu:draw("Square", {Size = v2(229 + 235, 20), Position = playerlist.highlightoutline.Position + v2(0, 4), Color = wapus.theme.hidden, Visible = visible}, "hidden")
-        playerlist.buttonoutline = self.menu:draw("Square", {Position = playerlist.highlightoutline.Position + v2(0, 4), Color = wapus.theme.outline, Visible = visible}, "outline")
-        playerlist.button = self.menu:draw("Square", {Position = playerlist.highlightoutline.Position + v2(0, 4), Color = wapus.theme.background, Visible = visible}, "background")
-        playerlist.buttonbackground = modifyDrawing(self.menu:gradient({wapus.theme.lightbackground, wapus.theme.background}, 8), {Position = playerlist.highlightoutline.Position + v2(0, 4), Color = wapus.theme.background, Visible = visible})
-        playerlist.text = self.menu:draw("Text", {Size = 14, Color = wapus.theme.text, Center = true, Text = "Player List", Visible = visible}, "text")
+        playerlist.outline = self.menu:draw("Square", {Size = v2(231 + 235, height), Position = self.menu.sectionbg.Position + v2(7, 3), Color = helper.theme.outline, Visible = visible}, "outline")
+        playerlist.highlightoutline = self.menu:draw("Square", {Size = v2(229 + 235, 4), Position = playerlist.outline.Position + v2(1, 1), Color = helper.theme.outline, Visible = visible}, "outline")
+        playerlist.highlight = modifyDrawing(self.menu:gradient({helper.theme.accent:Lerp(Color3.new(1, 1, 1), 0.1), helper.theme.accent, darken(helper.theme.accent, 0.4)}, 3), {Size = v2(229 + 235, 3), Position = playerlist.highlightoutline.Position, Color = helper.theme.accent, Visible = visible})
+        playerlist.buttons = self.menu:draw("Square", {Size = v2(229 + 235, 20), Position = playerlist.highlightoutline.Position + v2(0, 4), Color = helper.theme.hidden, Visible = visible}, "hidden")
+        playerlist.buttonoutline = self.menu:draw("Square", {Position = playerlist.highlightoutline.Position + v2(0, 4), Color = helper.theme.outline, Visible = visible}, "outline")
+        playerlist.button = self.menu:draw("Square", {Position = playerlist.highlightoutline.Position + v2(0, 4), Color = helper.theme.background, Visible = visible}, "background")
+        playerlist.buttonbackground = modifyDrawing(self.menu:gradient({helper.theme.lightbackground, helper.theme.background}, 8), {Position = playerlist.highlightoutline.Position + v2(0, 4), Color = helper.theme.background, Visible = visible})
+        playerlist.text = self.menu:draw("Text", {Size = 14, Color = helper.theme.text, Center = true, Text = "Player List", Visible = visible}, "text")
         playerlist.button.Size = v2(10 + playerlist.text.TextBounds.X, 21)
         playerlist.buttonbackground.Size = playerlist.button.Size
         playerlist.buttonbackground.ZIndex = 2
         playerlist.buttonoutline.Size = v2(11 + playerlist.text.TextBounds.X, 21)
         playerlist.text.Position = playerlist.buttons.Position + v2(5 + playerlist.text.TextBounds.X * 0.5, 4)
         playerlist.text.ZIndex = 3
-        playerlist.background = self.menu:draw("Square", {Size = v2(229 + 235, height - 27), Position = playerlist.outline.Position + v2(1, 26), Color = wapus.theme.background, Visible = visible}, "background")
-        playerlist.playerBoxOutline = self.menu:draw("Square", {Size = v2(229 + 235 - 16, 210), Position = playerlist.outline.Position + v2(9, 26 + 18), Color = wapus.theme.outline, Visible = visible}, "outline")
-        playerlist.playerBoxBackground = self.menu:draw("Square", {Size = v2(229 + 235 - 16 - 2, 208), Position = playerlist.outline.Position + v2(10, 26 + 19), Color = wapus.theme.background, Visible = visible}, "background")
-        playerlist.playerPFPOutline = self.menu:draw("Square", {Size = v2(74, 74), Position = playerlist.outline.Position + v2(9, 26 + 18 + 8 + 210), Color = wapus.theme.outline, Visible = visible}, "outline")
+        playerlist.background = self.menu:draw("Square", {Size = v2(229 + 235, height - 27), Position = playerlist.outline.Position + v2(1, 26), Color = helper.theme.background, Visible = visible}, "background")
+        playerlist.playerBoxOutline = self.menu:draw("Square", {Size = v2(229 + 235 - 16, 210), Position = playerlist.outline.Position + v2(9, 26 + 18), Color = helper.theme.outline, Visible = visible}, "outline")
+        playerlist.playerBoxBackground = self.menu:draw("Square", {Size = v2(229 + 235 - 16 - 2, 208), Position = playerlist.outline.Position + v2(10, 26 + 19), Color = helper.theme.background, Visible = visible}, "background")
+        playerlist.playerPFPOutline = self.menu:draw("Square", {Size = v2(74, 74), Position = playerlist.outline.Position + v2(9, 26 + 18 + 8 + 210), Color = helper.theme.outline, Visible = visible}, "outline")
         playerlist.playerPFP = self.menu:draw("Image", {Size = v2(72, 72), Position = playerlist.outline.Position + v2(10, 26 + 18 + 8 + 211), Data = blankData, Visible = visible}, "outline")
-        --playerlist.playerPFP = self.menu:draw("Square", {Size = v2(72, 72), Position = playerlist.outline.Position + v2(10, 26 + 18 + 8 + 211), Color = wapus.theme.outline, Visible = visible}, "outline")
-        playerlist.statusbuttonoutline = self.menu:draw("Square", {Size = v2(149, 20), Position = playerlist.outline.Position + v2(308, 26 + 18 + 210 + 22), Color = wapus.theme.outline, Visible = visible}, "outline")
-        playerlist.statusbutton = modifyDrawing(self.menu:gradient({wapus.theme.lightbackground, wapus.theme.background}, 6), {Size = v2(147, 18), Position = playerlist.outline.Position + v2(309, 26 + 18 + 210 + 23), Visible = visible})
-        playerlist.votekickbuttonoutline = self.menu:draw("Square", {Size = v2(69, 20), Position = playerlist.outline.Position + v2(308, 26 + 18 + 210 + 53), Color = wapus.theme.outline, Visible = visible}, "outline")
-        playerlist.votekickbutton = modifyDrawing(self.menu:gradient({wapus.theme.lightbackground, wapus.theme.background}, 6), {Size = v2(67, 18), Position = playerlist.outline.Position + v2(309, 26 + 18 + 210 + 54), Visible = visible})
-        playerlist.spectatebuttonoutline = self.menu:draw("Square", {Size = v2(69, 20), Position = playerlist.outline.Position + v2(308 + 80, 26 + 18 + 210 + 53), Color = wapus.theme.outline, Visible = visible}, "outline")
-        playerlist.spectatebutton = modifyDrawing(self.menu:gradient({wapus.theme.lightbackground, wapus.theme.background}, 6), {Size = v2(67, 18), Position = playerlist.outline.Position + v2(308 + 81, 26 + 18 + 210 + 54), Visible = visible})
+        --playerlist.playerPFP = self.menu:draw("Square", {Size = v2(72, 72), Position = playerlist.outline.Position + v2(10, 26 + 18 + 8 + 211), Color = helper.theme.outline, Visible = visible}, "outline")
+        playerlist.statusbuttonoutline = self.menu:draw("Square", {Size = v2(149, 20), Position = playerlist.outline.Position + v2(308, 26 + 18 + 210 + 22), Color = helper.theme.outline, Visible = visible}, "outline")
+        playerlist.statusbutton = modifyDrawing(self.menu:gradient({helper.theme.lightbackground, helper.theme.background}, 6), {Size = v2(147, 18), Position = playerlist.outline.Position + v2(309, 26 + 18 + 210 + 23), Visible = visible})
+        playerlist.votekickbuttonoutline = self.menu:draw("Square", {Size = v2(69, 20), Position = playerlist.outline.Position + v2(308, 26 + 18 + 210 + 53), Color = helper.theme.outline, Visible = visible}, "outline")
+        playerlist.votekickbutton = modifyDrawing(self.menu:gradient({helper.theme.lightbackground, helper.theme.background}, 6), {Size = v2(67, 18), Position = playerlist.outline.Position + v2(309, 26 + 18 + 210 + 54), Visible = visible})
+        playerlist.spectatebuttonoutline = self.menu:draw("Square", {Size = v2(69, 20), Position = playerlist.outline.Position + v2(308 + 80, 26 + 18 + 210 + 53), Color = helper.theme.outline, Visible = visible}, "outline")
+        playerlist.spectatebutton = modifyDrawing(self.menu:gradient({helper.theme.lightbackground, helper.theme.background}, 6), {Size = v2(67, 18), Position = playerlist.outline.Position + v2(308 + 81, 26 + 18 + 210 + 54), Visible = visible})
 
-        playerlist.nametext = self.menu:draw("Text", {Position = playerlist.playerBoxOutline.Position + v2(4, -17), Size = 14, Color = wapus.theme.text, Text = "Name", Visible = visible}, "text")
-        playerlist.teamtext = self.menu:draw("Text", {Position = playerlist.playerBoxOutline.Position + v2(4 + 148, -17), Size = 14, Color = wapus.theme.text, Text = "Team", Visible = visible}, "text")
-        playerlist.statuslabeltext = self.menu:draw("Text", {Position = playerlist.playerBoxOutline.Position + v2(4 + 298, -17), Size = 14, Color = wapus.theme.text, Text = "Status", Visible = visible}, "text")
-        playerlist.playertext = self.menu:draw("Text", {Position = playerlist.playerPFP.Position + v2(78, -2), Size = 14, Color = wapus.theme.text, Text = "No Player Selected", Visible = visible}, "text")
-        playerlist.playerstatustext = self.menu:draw("Text", {Position = playerlist.statusbuttonoutline.Position + v2(-1, -17), Size = 14, Color = wapus.theme.text, Text = "Player Status", Visible = visible}, "text")
-        playerlist.statustext = self.menu:draw("Text", {Position = playerlist.playerstatustext.Position + v2(6, 19), Size = 14, Color = wapus.theme.text, Text = "None", Visible = visible}, "text")
-        playerlist.droptext = self.menu:draw("Text", {Position = playerlist.playerstatustext.Position + v2(137, 20), Size = 14, Color = wapus.theme.text, Text = "-", Visible = visible}, "text")
-        playerlist.votekicktext = self.menu:draw("Text", {Position = playerlist.votekickbutton.Position + v2(33, 1), Size = 14, Center = true, Color = wapus.theme.text, Text = "Votekick", Visible = visible}, "text")
-        playerlist.spectatetext = self.menu:draw("Text", {Position = playerlist.spectatebutton.Position + v2(33, 1), Size = 14, Center = true, Color = wapus.theme.text, Text = "Spectate", Visible = visible}, "text")
+        playerlist.nametext = self.menu:draw("Text", {Position = playerlist.playerBoxOutline.Position + v2(4, -17), Size = 14, Color = helper.theme.text, Text = "Name", Visible = visible}, "text")
+        playerlist.teamtext = self.menu:draw("Text", {Position = playerlist.playerBoxOutline.Position + v2(4 + 148, -17), Size = 14, Color = helper.theme.text, Text = "Team", Visible = visible}, "text")
+        playerlist.statuslabeltext = self.menu:draw("Text", {Position = playerlist.playerBoxOutline.Position + v2(4 + 298, -17), Size = 14, Color = helper.theme.text, Text = "Status", Visible = visible}, "text")
+        playerlist.playertext = self.menu:draw("Text", {Position = playerlist.playerPFP.Position + v2(78, -2), Size = 14, Color = helper.theme.text, Text = "No Player Selected", Visible = visible}, "text")
+        playerlist.playerstatustext = self.menu:draw("Text", {Position = playerlist.statusbuttonoutline.Position + v2(-1, -17), Size = 14, Color = helper.theme.text, Text = "Player Status", Visible = visible}, "text")
+        playerlist.statustext = self.menu:draw("Text", {Position = playerlist.playerstatustext.Position + v2(6, 19), Size = 14, Color = helper.theme.text, Text = "None", Visible = visible}, "text")
+        playerlist.droptext = self.menu:draw("Text", {Position = playerlist.playerstatustext.Position + v2(137, 20), Size = 14, Color = helper.theme.text, Text = "-", Visible = visible}, "text")
+        playerlist.votekicktext = self.menu:draw("Text", {Position = playerlist.votekickbutton.Position + v2(33, 1), Size = 14, Center = true, Color = helper.theme.text, Text = "Votekick", Visible = visible}, "text")
+        playerlist.spectatetext = self.menu:draw("Text", {Position = playerlist.spectatebutton.Position + v2(33, 1), Size = 14, Center = true, Color = helper.theme.text, Text = "Spectate", Visible = visible}, "text")
 
-        playerlist.carrot = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(437, -1), Size = 14, Outline = false, Color = wapus.theme.accent, Text = "^", Visible = visible}, "accent")
-        playerlist.tinyv = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(437, 195), Size = 11, Outline = false, Color = wapus.theme.accent, Text = "v", Visible = visible}, "accent")
+        playerlist.carrot = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(437, -1), Size = 14, Outline = false, Color = helper.theme.accent, Text = "^", Visible = visible}, "accent")
+        playerlist.tinyv = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(437, 195), Size = 11, Outline = false, Color = helper.theme.accent, Text = "v", Visible = visible}, "accent")
 
         playerlist.playerdrawings = {}
         for playerIndex = 1, 9 do
             local drawinglist = {}
 
             if playerIndex ~= 9 then
-                drawinglist.sectionline = self.menu:draw("Square", {Size = v2(438, 1), Position = playerlist.playerBoxBackground.Position + v2(4, 23 * playerIndex), Color = wapus.theme.outline, Visible = visible}, "outline")
+                drawinglist.sectionline = self.menu:draw("Square", {Size = v2(438, 1), Position = playerlist.playerBoxBackground.Position + v2(4, 23 * playerIndex), Color = helper.theme.outline, Visible = visible}, "outline")
             end
 
-            drawinglist.teamline = self.menu:draw("Square", {Size = v2(1, playerIndex ~= 9 and 16 or 17), Position = playerlist.playerBoxBackground.Position + v2(148, 23 * (playerIndex - 1) + 4), Color = wapus.theme.outline, Visible = visible}, "outline")
-            drawinglist.statusline = self.menu:draw("Square", {Size = v2(1, playerIndex ~= 9 and 16 or 17), Position = playerlist.playerBoxBackground.Position + v2(298, 23 * (playerIndex - 1) + 4), Color = wapus.theme.outline, Visible = visible}, "outline")
-            drawinglist.name = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(4, 23 * (playerIndex - 1) + 5), Size = 14, Color = wapus.theme.text, Text = "", Visible = visible}, "text")
-            drawinglist.team = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(152, 23 * (playerIndex - 1) + 5), Size = 14, Color = wapus.theme.text, Text = "", Visible = visible}, "text")
-            drawinglist.status = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(302, 23 * (playerIndex - 1) + 5), Size = 14, Color = wapus.theme.text, Text = "", Visible = visible}, "text")
+            drawinglist.teamline = self.menu:draw("Square", {Size = v2(1, playerIndex ~= 9 and 16 or 17), Position = playerlist.playerBoxBackground.Position + v2(148, 23 * (playerIndex - 1) + 4), Color = helper.theme.outline, Visible = visible}, "outline")
+            drawinglist.statusline = self.menu:draw("Square", {Size = v2(1, playerIndex ~= 9 and 16 or 17), Position = playerlist.playerBoxBackground.Position + v2(298, 23 * (playerIndex - 1) + 4), Color = helper.theme.outline, Visible = visible}, "outline")
+            drawinglist.name = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(4, 23 * (playerIndex - 1) + 5), Size = 14, Color = helper.theme.text, Text = "", Visible = visible}, "text")
+            drawinglist.team = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(152, 23 * (playerIndex - 1) + 5), Size = 14, Color = helper.theme.text, Text = "", Visible = visible}, "text")
+            drawinglist.status = self.menu:draw("Text", {Position = playerlist.playerBoxBackground.Position + v2(302, 23 * (playerIndex - 1) + 5), Size = 14, Color = helper.theme.text, Text = "", Visible = visible}, "text")
 
             playerlist.playerdrawings[playerIndex] = drawinglist
         end
@@ -1794,7 +1794,7 @@ do -- UI Library
         local tab = {}
         tab.tabIndex = #self.tabs + 1
         tab.button = self["tab" .. tostring(tab.tabIndex)]
-        tab.title = self:draw("Text", {Size = 15, Position = tab.button.Position + v2(48, 11), Color = wapus.theme[tab.tabIndex == self.tabIndex and "text" or "hiddenText"], Text = text, Center = true, Visible = self.open}, "text")
+        tab.title = self:draw("Text", {Size = 15, Position = tab.button.Position + v2(48, 11), Color = helper.theme[tab.tabIndex == self.tabIndex and "text" or "hiddenText"], Text = text, Center = true, Visible = self.open}, "text")
         tab.CreateSection = createSection
         tab.CreatePlayerList = createPlayerList
         tab.menu = self
@@ -1826,12 +1826,12 @@ do -- UI Library
         keys.drawCache = {}
         keys.draw = draw
         keys.gradient = gradient
-        keys.outline = keys:draw("Square", {Color = wapus.theme.outline, Visible = true}, "outline")
-        keys.background = keys:draw("Square", {Color = wapus.theme.background, Visible = true}, "background")
-        keys.titlebackground = modifyDrawing(keys:gradient({wapus.theme.lightbackground, wapus.theme.background}, 7), {Color = wapus.theme.accent, Visible = true})
-        keys.highlightoutline = keys:draw("Square", {Color = wapus.theme.outline, Visible = true}, "outline")
-        keys.highlight = modifyDrawing(keys:gradient({wapus.theme.accent:Lerp(Color3.new(1, 1, 1), 0.1), wapus.theme.accent, darken(wapus.theme.accent, 0.4)}, 3), {Color = wapus.theme.accent, Visible = true})
-        keys.title = keys:draw("Text", {Size = 16, Color = wapus.theme.text, Text = "Keybinds", Visible = true}, "text")
+        keys.outline = keys:draw("Square", {Color = helper.theme.outline, Visible = true}, "outline")
+        keys.background = keys:draw("Square", {Color = helper.theme.background, Visible = true}, "background")
+        keys.titlebackground = modifyDrawing(keys:gradient({helper.theme.lightbackground, helper.theme.background}, 7), {Color = helper.theme.accent, Visible = true})
+        keys.highlightoutline = keys:draw("Square", {Color = helper.theme.outline, Visible = true}, "outline")
+        keys.highlight = modifyDrawing(keys:gradient({helper.theme.accent:Lerp(Color3.new(1, 1, 1), 0.1), helper.theme.accent, darken(helper.theme.accent, 0.4)}, 3), {Color = helper.theme.accent, Visible = true})
+        keys.title = keys:draw("Text", {Size = 16, Color = helper.theme.text, Text = "Keybinds", Visible = true}, "text")
 
         local function updateKeybinds()
             if keys.keybinds then
@@ -1850,7 +1850,7 @@ do -- UI Library
                     text = text .. " [ " .. keyName .. " ]"
                 end
 
-                insert(newkeybinds, {keys:draw("Text", {Size = 16, Color = wapus.theme.text, Text = text, Visible = true}, "text"), keybind})
+                insert(newkeybinds, {keys:draw("Text", {Size = 16, Color = helper.theme.text, Text = text, Visible = true}, "text"), keybind})
             end
 
             keys.keybinds = newkeybinds
@@ -1904,7 +1904,7 @@ do -- UI Library
         updateKeyList()
     end
 
-    function wapus:CreateMenu(title, visible, index)
+    function helper:CreateMenu(title, visible, index)
         if visible == nil then
             visible = true
         end
@@ -2151,7 +2151,7 @@ do -- UI Library
                 return
             end
 
-            for _, menuData in wapus.menus do
+            for _, menuData in helper.menus do
                 for _, keyData in menuData.keybinds do
                     if key == keyData[1] then
                         keyData[2].toggle:SetValue(not keyData[2].toggle.value)
@@ -2164,14 +2164,14 @@ do -- UI Library
             end
 
             local clockTime = os.clock()
-            if input.KeyCode == Enum.KeyCode[wapus.toggleKeybind] and clockTime - lastToggle > fadeDuration * 2 and not dragging and not sliding and not dropping and not picking then
-                wapus.open = not wapus.open
+            if input.KeyCode == Enum.KeyCode[helper.toggleKeybind] and clockTime - lastToggle > fadeDuration * 2 and not dragging and not sliding and not dropping and not picking then
+                helper.open = not helper.open
                 lastToggle = clockTime
 
-                for _, menu in wapus.menus do
-                    local trans = (wapus.open and 0 or 1) --menu.background.Transparency
+                for _, menu in helper.menus do
+                    local trans = (helper.open and 0 or 1) --menu.background.Transparency
                     local stepFactor = 1 / fadeSteps
-                    local step = stepFactor * (wapus.open and 1 or -1)
+                    local step = stepFactor * (helper.open and 1 or -1)
                     local stepDur = stepFactor * fadeDuration
                     local drawings = {
                         menu.outline,
@@ -2192,7 +2192,7 @@ do -- UI Library
                         menu.titlebackground,
                         menu.tabbackground
                     }
-                    menu.open = wapus.open
+                    menu.open = helper.open
 
                     if menu.updateCache then
                         menu.updateCache()
@@ -2207,7 +2207,7 @@ do -- UI Library
                     end
 
                     task.spawn(function()
-                        if wapus.open then
+                        if helper.open then
                             for _, drawing in drawings do
                                 drawing.Visible = true
                             end
@@ -2223,7 +2223,7 @@ do -- UI Library
                             task.wait(stepDur)
                         end
 
-                        if not wapus.open then
+                        if not helper.open then
                             for _, drawing in drawings do
                                 drawing.Visible = false
                             end
@@ -2257,7 +2257,7 @@ do -- UI Library
         local clicked = down and not wasDown
         wasDown = down
 
-        if wapus.open then
+        if helper.open then
             if sliding then
                 if down then
                     local relpos = userInputService:GetMouseLocation().X - sliding.button.Position.X
@@ -2451,7 +2451,7 @@ do -- UI Library
                 return
             end
 
-            for _, menuData in wapus.menus do
+            for _, menuData in helper.menus do
                 if menuData.open then
                     local mouse = userInputService:GetMouseLocation()
                     local onMenu = checkDrawing(mouse, menuData.outline)
@@ -2484,14 +2484,14 @@ do -- UI Library
                                 local newIndex = math.clamp(math.ceil((mouse.X - sectionbg.X) / 96), 1, 5)
                                 local oldTab = menuData.tabs[menuData.tabIndex]
                                 local newTab = menuData.tabs[newIndex]
-                                oldTab.title.Color = wapus.theme.hiddenText
-                                newTab.title.Color = wapus.theme.text
+                                oldTab.title.Color = helper.theme.hiddenText
+                                newTab.title.Color = helper.theme.text
                                 local oldButton = menuData["tab" .. tostring(menuData.tabIndex)]
                                 local newButton = menuData["tab" .. tostring(newIndex)]
                                 oldButton.Size = oldButton.Size - v2(0, 1)
                                 newButton.Size = newButton.Size + v2(0, 1)
-                                oldButton.Color = wapus.theme.hidden
-                                newButton.Color = wapus.theme.background
+                                oldButton.Color = helper.theme.hidden
+                                newButton.Color = helper.theme.background
                                 menuData.tabbackground.Position = newButton.Position
                                 menuData.tabbackground.Size = newButton.Size
 
@@ -2541,9 +2541,9 @@ do -- UI Library
                                                     local statusName = statusIndex == 1 and "None" or sectionData.statuslist[statusIndex - 1]
                                                     local buttonData = {}
                                                     buttonData.status = statusName
-                                                    buttonData.outline = statusdropping:draw("Square", {Size = v2(149, 20), Position = statusButton.Position + v2(0, 19 * statusIndex), Color = wapus.theme.outline, Visible = true, ZIndex = 4}, "outline")
-                                                    buttonData.button = statusdropping:draw("Square", {Size = v2(147, 18), Position = buttonData.outline.Position + v2(1, 1), Color = wapus.theme.background, Visible = true, ZIndex = 4}, "outline")
-                                                    buttonData.text = statusdropping:draw("Text", {Position = buttonData.button.Position + v2(4, 1), Size = 14, Color = wapus.theme.text, Text = statusName, Visible = true, ZIndex = 4}, "text")
+                                                    buttonData.outline = statusdropping:draw("Square", {Size = v2(149, 20), Position = statusButton.Position + v2(0, 19 * statusIndex), Color = helper.theme.outline, Visible = true, ZIndex = 4}, "outline")
+                                                    buttonData.button = statusdropping:draw("Square", {Size = v2(147, 18), Position = buttonData.outline.Position + v2(1, 1), Color = helper.theme.background, Visible = true, ZIndex = 4}, "outline")
+                                                    buttonData.text = statusdropping:draw("Text", {Position = buttonData.button.Position + v2(4, 1), Size = 14, Color = helper.theme.text, Text = statusName, Visible = true, ZIndex = 4}, "text")
                                                     statusdropping.buttons[statusIndex] = buttonData
                                                 end
                                             end
@@ -2555,12 +2555,12 @@ do -- UI Library
                                             for sectionIndex, section in sectionData.sections do
                                                 if checkDrawing(mouse, section.button) then
                                                     local oldSec = sectionData.sections[sectionData.sectionIndex]
-                                                    oldSec.text.Color = wapus.theme.hiddenText
-                                                    section.text.Color = wapus.theme.text
+                                                    oldSec.text.Color = helper.theme.hiddenText
+                                                    section.text.Color = helper.theme.text
                                                     oldSec.button.Size = oldSec.button.Size - v2(0, 1)
                                                     section.button.Size = section.button.Size + v2(0, 1)
-                                                    oldSec.button.Color = wapus.theme.hidden
-                                                    section.button.Color = wapus.theme.background
+                                                    oldSec.button.Color = helper.theme.hidden
+                                                    section.button.Color = helper.theme.background
                                                     sectionData.buttonbackground.Position = section.button.Position
                                                     sectionData.buttonbackground.Size = section.button.Size
 
@@ -2601,24 +2601,24 @@ do -- UI Library
                                                                     draw = draw,
                                                                     gradient = gradient
                                                                 } -- i wanna kms
-                                                                picker.outline = picker:draw("Square", {Position = color.toggle.buttonoutline.Position + v2(-57, -8), Size = v2(275, 217), Color = wapus.theme.outline, Visible = true, ZIndex = 4})
-                                                                picker.background = picker:draw("Square", {Position = picker.outline.Position + v2(1, 1), Size = v2(273, 215), Color = wapus.theme.background, Visible = true, ZIndex = 4})
-                                                                picker.highlightbackground = picker:draw("Square", {Position = picker.outline.Position + v2(1, 1), Size = v2(273, 4), Color = wapus.theme.outline, Visible = true, ZIndex = 4})
-                                                                picker.highlight = modifyDrawing(picker:gradient({wapus.theme.accent:Lerp(Color3.new(1, 1, 1), 0.1), wapus.theme.accent, darken(wapus.theme.accent, 0.4)}, 3), {Position = picker.highlightbackground.Position, Size = v2(273, 3), Visible = true, ZIndex = 4})
-                                                                picker.titlebackground = modifyDrawing(picker:gradient({wapus.theme.lightbackground, wapus.theme.background}, 6), {Size = v2(273, 17), Position = picker.background.Position + v2(0, 4), Visible = true, ZIndex = 4})
-                                                                picker.title = picker:draw("Text", {Position = picker.background.Position + v2(3, 3), Size = 14, Color = wapus.theme.text, Text = color.name, Visible = true, ZIndex = 4})
-                                                                picker.hsvOutline = picker:draw("Square", {Position = picker.background.Position + v2(7, 19), Size = v2(202 - 18 - 16, 168), Color = wapus.theme.outline, Visible = true, ZIndex = 4})
-                                                                picker.hueOutline = picker:draw("Square", {Position = picker.hsvOutline.Position + v2(7 + picker.hsvOutline.Size.X, 0), Size = v2(12, 168), Color = wapus.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.outline = picker:draw("Square", {Position = color.toggle.buttonoutline.Position + v2(-57, -8), Size = v2(275, 217), Color = helper.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.background = picker:draw("Square", {Position = picker.outline.Position + v2(1, 1), Size = v2(273, 215), Color = helper.theme.background, Visible = true, ZIndex = 4})
+                                                                picker.highlightbackground = picker:draw("Square", {Position = picker.outline.Position + v2(1, 1), Size = v2(273, 4), Color = helper.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.highlight = modifyDrawing(picker:gradient({helper.theme.accent:Lerp(Color3.new(1, 1, 1), 0.1), helper.theme.accent, darken(helper.theme.accent, 0.4)}, 3), {Position = picker.highlightbackground.Position, Size = v2(273, 3), Visible = true, ZIndex = 4})
+                                                                picker.titlebackground = modifyDrawing(picker:gradient({helper.theme.lightbackground, helper.theme.background}, 6), {Size = v2(273, 17), Position = picker.background.Position + v2(0, 4), Visible = true, ZIndex = 4})
+                                                                picker.title = picker:draw("Text", {Position = picker.background.Position + v2(3, 3), Size = 14, Color = helper.theme.text, Text = color.name, Visible = true, ZIndex = 4})
+                                                                picker.hsvOutline = picker:draw("Square", {Position = picker.background.Position + v2(7, 19), Size = v2(202 - 18 - 16, 168), Color = helper.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.hueOutline = picker:draw("Square", {Position = picker.hsvOutline.Position + v2(7 + picker.hsvOutline.Size.X, 0), Size = v2(12, 168), Color = helper.theme.outline, Visible = true, ZIndex = 4})
                                                                 picker.hue = picker:draw("Image", {Position = picker.hsvOutline.Position + v2(8 + picker.hsvOutline.Size.X, 1), Size = v2(10, 166), Data = hueData, Visible = true, ZIndex = 4})
-                                                                picker.valueOutline = picker:draw("Square", {Position = picker.background.Position + v2(7, 195), Size = v2(202 - 18 - 16, 12), Color = wapus.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.valueOutline = picker:draw("Square", {Position = picker.background.Position + v2(7, 195), Size = v2(202 - 18 - 16, 12), Color = helper.theme.outline, Visible = true, ZIndex = 4})
                                                                 picker.valuebar = picker:draw("Image", {Position = picker.background.Position + v2(8, 196), Size = v2(200 - 18 - 16, 10), Data = valueData, Visible = true, ZIndex = 4})
-                                                                picker.newtext = picker:draw("Text", {Position = picker.hueOutline.Position + v2(19, -2), Size = 14, Color = wapus.theme.text, Text = "New Color", Visible = true, ZIndex = 4})
-                                                                picker.newOutline = picker:draw("Square", {Position = picker.newtext.Position + v2(0, 17), Size = v2(65, 35), Color = wapus.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.newtext = picker:draw("Text", {Position = picker.hueOutline.Position + v2(19, -2), Size = 14, Color = helper.theme.text, Text = "New Color", Visible = true, ZIndex = 4})
+                                                                picker.newOutline = picker:draw("Square", {Position = picker.newtext.Position + v2(0, 17), Size = v2(65, 35), Color = helper.theme.outline, Visible = true, ZIndex = 4})
                                                                 picker.newColor = picker:draw("Square", {Position = picker.newtext.Position + v2(1, 18), Size = v2(63, 33), Color = color.value, Visible = true, ZIndex = 4})
-                                                                picker.oldtext = picker:draw("Text", {Position = picker.hueOutline.Position + v2(19, 52), Size = 14, Color = wapus.theme.text, Text = "Old Color", Visible = true, ZIndex = 4})
-                                                                picker.oldOutline = picker:draw("Square", {Position = picker.oldtext.Position + v2(0, 17), Size = v2(65, 35), Color = wapus.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.oldtext = picker:draw("Text", {Position = picker.hueOutline.Position + v2(19, 52), Size = 14, Color = helper.theme.text, Text = "Old Color", Visible = true, ZIndex = 4})
+                                                                picker.oldOutline = picker:draw("Square", {Position = picker.oldtext.Position + v2(0, 17), Size = v2(65, 35), Color = helper.theme.outline, Visible = true, ZIndex = 4})
                                                                 picker.oldColor = picker:draw("Square", {Position = picker.oldtext.Position + v2(1, 18), Size = v2(63, 33), Color = color.value, Visible = true, ZIndex = 4})
-                                                                picker.applytext = picker:draw("Text", {Position = picker.hueOutline.Position + v2(27, 175), Size = 14, Color = wapus.theme.text, Text = "[  Apply  ]", Visible = true, ZIndex = 4})
+                                                                picker.applytext = picker:draw("Text", {Position = picker.hueOutline.Position + v2(27, 175), Size = 14, Color = helper.theme.text, Text = "[  Apply  ]", Visible = true, ZIndex = 4})
                                                                 picker.colordrawings = {}
 
                                                                 local h, s, v = color.value:ToHSV()
@@ -2651,11 +2651,11 @@ do -- UI Library
                                                                 end
 
 
-                                                                picker.hsvButtonOutline = picker:draw("Square", {Position = startPos + v2(s * 166 - 2, (1 - v) * 166 - 2), Size = v2(5, 5), Filled = false, Thickness = 1, Color = wapus.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.hsvButtonOutline = picker:draw("Square", {Position = startPos + v2(s * 166 - 2, (1 - v) * 166 - 2), Size = v2(5, 5), Filled = false, Thickness = 1, Color = helper.theme.outline, Visible = true, ZIndex = 4})
                                                                 picker.hsvButton = picker:draw("Square", {Position = picker.hsvButtonOutline.Position + v2(1, 1), Size = v2(3, 3), Filled = false, Thickness = 1, Color = Color3.new(1, 1, 1), Visible = true, ZIndex = 4})
-                                                                picker.hueButtonOutline = picker:draw("Square", {Position = picker.hue.Position + v2(-3, (1 - h) * 166 - 3), Size = v2(16, 5), Filled = false, Thickness = 1, Color = wapus.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.hueButtonOutline = picker:draw("Square", {Position = picker.hue.Position + v2(-3, (1 - h) * 166 - 3), Size = v2(16, 5), Filled = false, Thickness = 1, Color = helper.theme.outline, Visible = true, ZIndex = 4})
                                                                 picker.hueButton = picker:draw("Square", {Position = picker.hueButtonOutline.Position + v2(1, 1), Size = v2(14, 3), Filled = false, Thickness = 1, Color = Color3.new(1, 1, 1), Visible = true, ZIndex = 4})
-                                                                picker.valueButtonOutline = picker:draw("Square", {Position = picker.valuebar.Position + v2(v * 166 - 3, -3), Size = v2(5, 16), Filled = false, Thickness = 1, Color = wapus.theme.outline, Visible = true, ZIndex = 4})
+                                                                picker.valueButtonOutline = picker:draw("Square", {Position = picker.valuebar.Position + v2(v * 166 - 3, -3), Size = v2(5, 16), Filled = false, Thickness = 1, Color = helper.theme.outline, Visible = true, ZIndex = 4})
                                                                 picker.valueButton = picker:draw("Square", {Position = picker.valueButtonOutline.Position + v2(1, 1), Size = v2(3, 14), Filled = false, Thickness = 1, Color = Color3.new(1, 1, 1), Visible = true, ZIndex = 4})
                                                                 color.picker = picker
                                                                 picking = color
@@ -2672,9 +2672,9 @@ do -- UI Library
 
                                                         for optionIndex = 1, #element.options do
                                                             local newDrawings = {}
-                                                            newDrawings.outline = menuData:draw("Square", {Position = element.buttonoutline.Position + v2(0, optionIndex * 17), Size = v2(213, 18), Color = wapus.theme.outline, Visible = true, ZIndex = 4}, "outline")
-                                                            newDrawings.button = menuData:draw("Square", {Position = newDrawings.outline.Position + v2(1, 1), Size = v2(211, 16), Color = wapus.theme.background, Visible = true, ZIndex = 4}, "background")
-                                                            newDrawings.valuetext = menuData:draw("Text", {Position = newDrawings.button.Position + v2(6, 0), Size = 14, Color = wapus.theme.text, Text = element.options[optionIndex], Visible = true, ZIndex = 4}, "text")
+                                                            newDrawings.outline = menuData:draw("Square", {Position = element.buttonoutline.Position + v2(0, optionIndex * 17), Size = v2(213, 18), Color = helper.theme.outline, Visible = true, ZIndex = 4}, "outline")
+                                                            newDrawings.button = menuData:draw("Square", {Position = newDrawings.outline.Position + v2(1, 1), Size = v2(211, 16), Color = helper.theme.background, Visible = true, ZIndex = 4}, "background")
+                                                            newDrawings.valuetext = menuData:draw("Text", {Position = newDrawings.button.Position + v2(6, 0), Size = 14, Color = helper.theme.text, Text = element.options[optionIndex], Visible = true, ZIndex = 4}, "text")
                                                             element.optionDrawings[optionIndex] = newDrawings
                                                         end
                                                     elseif element.type == "button" then
@@ -2781,11 +2781,11 @@ LPH_JIT_MAX(function() -- Main Cheat
                 end
             end)
             if not okScan then
-                warn("[banknote/PF] wapus: getgc(true) scan threw (executor may not support getgc)")
+                warn("[banknote/PF] helper: getgc(true) scan threw (executor may not support getgc)")
             end
             if not moduleCache then
                 if scans % 8 == 0 then
-                    warn("[banknote/PF] wapus: still searching for PF modules... (in a live match?) scans=" .. scans)
+                    warn("[banknote/PF] helper: still searching for PF modules... (in a live match?) scans=" .. scans)
                 end
                 task.wait(0.25)
             end
@@ -2803,11 +2803,11 @@ LPH_JIT_MAX(function() -- Main Cheat
                     end
                 end
             end)
-            warn(("[banknote/PF] wapus: PF module cache not found. gc tables=%d, w/NetworkClient=%d, w/ScreenCull=%d. Deploy into a match, then re-run.")
+            warn(("[banknote/PF] helper: PF module cache not found. gc tables=%d, w/NetworkClient=%d, w/ScreenCull=%d. Deploy into a match, then re-run.")
                 :format(tables, hasNet, hasCull))
             return
         end
-        warn("[banknote/PF] wapus: module cache ready")
+        warn("[banknote/PF] helper: module cache ready")
     end
 
     local modules = {}
@@ -2930,7 +2930,7 @@ LPH_JIT_MAX(function() -- Main Cheat
     --astar.interval = 12  --  8 to 16 is good
     --astar.ignorelist = {workspace.Players, camera, ignore, hitboxObjects, backtrackObjects}
 
-    local pathfinding = loadstring(game:HttpGet("https://raw.githubusercontent.com/iRay888/wapus/refs/heads/main/pathfinding.lua"))() -- i didnt make this, i did fix it tho cuz pro
+    local pathfinding = loadstring(game:HttpGet("https://raw.githubusercontent.com/iRay888/helper/refs/heads/main/pathfinding.lua"))() -- i didnt make this, i did fix it tho cuz pro
 
     local physicsignore = {workspace.Terrain, ignore, workspace.Players, camera, hitboxObjects, backtrackObjects}
     local raycastparameters = RaycastParams.new()
@@ -3216,8 +3216,8 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local raycastStep = 1 / 30 -- 60 for more accuracy
     local function scanPositions(origin, target, accel, speed, penetration)
-        local origins = getPositionOffsets(origin, target, wapus:GetValue("Rage Bot", "Fire Position Scanning") and wapus:GetValue("Rage Bot", "Fire Position Offset"))
-        local targets = getPositionOffsets(target, origin, wapus:GetValue("Rage Bot", "Hit Position Scanning") and wapus:GetValue("Rage Bot", "Hit Position Offset"))
+        local origins = getPositionOffsets(origin, target, helper:GetValue("Rage Bot", "Fire Position Scanning") and helper:GetValue("Rage Bot", "Fire Position Offset"))
+        local targets = getPositionOffsets(target, origin, helper:GetValue("Rage Bot", "Hit Position Scanning") and helper:GetValue("Rage Bot", "Hit Position Offset"))
 
         for originIndex = 1, #origins do
             local newOrigin = origins[originIndex]
@@ -3273,10 +3273,10 @@ LPH_JIT_MAX(function() -- Main Cheat
     local function applyAAAngles(angles)
         local x, y, z = angles.X, angles.Y, angles.Z
 
-        if wapus:GetValue("Anti Aim", "Pitch") then
-            local addition = rad(wapus:GetValue("Anti Aim", "Pitch Amount")) - quarter
+        if helper:GetValue("Anti Aim", "Pitch") then
+            local addition = rad(helper:GetValue("Anti Aim", "Pitch Amount")) - quarter
 
-            if string.find(string.lower(wapus:GetValue("Anti Aim", "Pitch Mode")), "abs") then
+            if string.find(string.lower(helper:GetValue("Anti Aim", "Pitch Mode")), "abs") then
                 x = addition
             else
                 x += addition
@@ -3285,18 +3285,18 @@ LPH_JIT_MAX(function() -- Main Cheat
             x = clamp(x, -quarter, quarter)
         end
 
-        if wapus:GetValue("Anti Aim", "Yaw") then
-            local addition = rad(wapus:GetValue("Anti Aim", "Yaw Amount"))
+        if helper:GetValue("Anti Aim", "Yaw") then
+            local addition = rad(helper:GetValue("Anti Aim", "Yaw Amount"))
 
-            if string.find(string.lower(wapus:GetValue("Anti Aim", "Yaw Mode")), "rel") then
+            if string.find(string.lower(helper:GetValue("Anti Aim", "Yaw Mode")), "rel") then
                 y += addition
             else
                 y = addition
             end
         end
 
-        if wapus:GetValue("Anti Aim", "Spin Bot") then
-            y += (os.clock() - startTime) * math.rad(wapus:GetValue("Anti Aim", "Spin Speed")) * ((wapus:GetValue("Anti Aim", "Spin Direction") == "Left" and 1) or -1)
+        if helper:GetValue("Anti Aim", "Spin Bot") then
+            y += (os.clock() - startTime) * math.rad(helper:GetValue("Anti Aim", "Spin Speed")) * ((helper:GetValue("Anti Aim", "Spin Direction") == "Left" and 1) or -1)
         end
 
         return Vector3.new(x, y, z)
@@ -3332,7 +3332,7 @@ LPH_JIT_MAX(function() -- Main Cheat
         lastRefreshPosition = nil;
     };
     function network:send(name, ...)
-        if wapus:GetValue("Third Person", "Enabled") and wapus:GetValue("Third Person", "Show Character") then
+        if helper:GetValue("Third Person", "Enabled") and helper:GetValue("Third Person", "Show Character") then
             if name == "spawn" then
                 if not started then
                     started = true
@@ -3361,7 +3361,7 @@ LPH_JIT_MAX(function() -- Main Cheat
                 elseif name == "stance" then
                     local stance = ...
 
-                    if (not wapus:GetValue("Anti Aim", "Enabled (May Cause Despawning)") or not wapus:GetValue("Anti Aim", "Force Stance") or not wapus:GetValue("Third Person", "Apply Anti Aim To Character")) and currentObj then
+                    if (not helper:GetValue("Anti Aim", "Enabled (May Cause Despawning)") or not helper:GetValue("Anti Aim", "Force Stance") or not helper:GetValue("Third Person", "Apply Anti Aim To Character")) and currentObj then
                         currentObj:setStance(stance)
                     end
                 elseif name == "newbullets" then
@@ -3451,7 +3451,7 @@ LPH_JIT_MAX(function() -- Main Cheat
                 end
 
                 return
-            elseif wapus:GetValue("Movement", "Noclip") and newSpawnCache.lastUpdate then
+            elseif helper:GetValue("Movement", "Noclip") and newSpawnCache.lastUpdate then
                 local hit = raycast(newSpawnCache.lastUpdate, position - newSpawnCache.lastUpdate, physicsignore)
 
                 if hit then
@@ -3466,19 +3466,19 @@ LPH_JIT_MAX(function() -- Main Cheat
                 return
             end
 
-            if wapus:GetValue('Anti Aim', 'Fake Lag') then
+            if helper:GetValue('Anti Aim', 'Fake Lag') then
                 if not fakelag.lastRefreshPosition or not fakelag.lastRefreshTime then
                     fakelag.lastRefreshPosition = position;
                     fakelag.lastRefreshTime = tick();
                 end;
 
 
-                if ((position - fakelag.lastRefreshPosition).Magnitude > wapus:GetValue('Anti Aim', 'Refresh Distance')) or tick() - fakelag.lastRefreshTime > wapus:GetValue('Anti Aim', 'Refresh Rate') then
+                if ((position - fakelag.lastRefreshPosition).Magnitude > helper:GetValue('Anti Aim', 'Refresh Distance')) or tick() - fakelag.lastRefreshTime > helper:GetValue('Anti Aim', 'Refresh Rate') then
                     fakelag.lastRefreshPosition = position;
                     fakelag.lastRefreshTime = tick();
 
-                    if wapus:GetValue('Anti Aim', 'Randomize Position') then
-                        local xaxis, yaxis, zaxis = wapus:GetValue('Anti Aim', 'X-Axis Factor'), 0, wapus:GetValue('Anti Aim', 'Z-Axis Factor');
+                    if helper:GetValue('Anti Aim', 'Randomize Position') then
+                        local xaxis, yaxis, zaxis = helper:GetValue('Anti Aim', 'X-Axis Factor'), 0, helper:GetValue('Anti Aim', 'Z-Axis Factor');
                         local xoff, yoff, zoff = math.random(-xaxis, xaxis), math.random(-yaxis, yaxis), math.random(-zaxis, zaxis);
 
                         position += Vector3.new(xoff, yoff, zoff);
@@ -3491,12 +3491,12 @@ LPH_JIT_MAX(function() -- Main Cheat
                 fakelag.lastRefreshTime = tick();
             end;
 
-            if wapus:GetValue("Anti Aim", "Enabled (May Cause Despawning)") then
+            if helper:GetValue("Anti Aim", "Enabled (May Cause Despawning)") then
                 angles = applyAAAngles(angles)
                 angles2 = angles * 0.99
             end
 
-            --if wapus:GetValue("Rage Bot", "Enabled") and wapus:GetValue("Rage Bot", "Firerate (May Cause Kicking)") then
+            --if helper:GetValue("Rage Bot", "Enabled") and helper:GetValue("Rage Bot", "Firerate (May Cause Kicking)") then
             --    newSpawnCache.lastOffsetUpdate = newSpawnCache.lastOffsetUpdate or time
             --
             --    if timeLag > 0 and newSpawnCache.latency ~= -timeLag then
@@ -3516,7 +3516,7 @@ LPH_JIT_MAX(function() -- Main Cheat
             --    newSpawnCache.lastOffsetUpdate = time
             --end
 
-            --local fly = false --wapus:GetValue("Movement", "Fly") or (wapus:GetValue("Rage Bot", "Enabled") and wapus:GetValue("Rage Bot", "Firerate (May Cause Kicking)"))
+            --local fly = false --helper:GetValue("Movement", "Fly") or (helper:GetValue("Rage Bot", "Enabled") and helper:GetValue("Rage Bot", "Firerate (May Cause Kicking)"))
             --if fly and newSpawnCache.lastUpdate then
             --    if not newSpawnCache.lastFlyUpdate or ((clockTime - newSpawnCache.lastFlyUpdate) > flyUpdateDelay) then
             --        newSpawnCache.lastFlyUpdate = clockTime
@@ -3529,7 +3529,7 @@ LPH_JIT_MAX(function() -- Main Cheat
             --    return
             --end
 
-            if wapus:GetValue("Movement", "Walk Speed") and newSpawnCache.lastUpdate then -- no patch pls :(
+            if helper:GetValue("Movement", "Walk Speed") and newSpawnCache.lastUpdate then -- no patch pls :(
                 send(self, name, newSpawnCache.lastUpdate, angles, angles2, time + newSpawnCache.latency + newSpawnCache.currentAddition)
                 newSpawnCache.updateDebt += 1
             end;
@@ -3546,12 +3546,12 @@ LPH_JIT_MAX(function() -- Main Cheat
                 bullet[2] = bullet[2] + ticketAddition
             end
 
-            if wapus:GetValue("Rage Bot", "Enabled") then
+            if helper:GetValue("Rage Bot", "Enabled") then
                 return
             end
 
-            if wapus:GetValue("Silent Aim", "Enabled") and (wapus:GetValue("Silent Aim", "Hit Chance") >= chanceOne) then
-                local target, entry, part = getClosest(silentaimfov.Position, wapus:GetValue("Silent Aim", "Use FOV") and silentaimfov.Radius, wapus:GetValue("Silent Aim", "Use Dead FOV") and silentaimdeadfov.Radius, wapus:GetValue("Silent Aim", "Visible Check"), (wapus:GetValue("Silent Aim", "Head Shot Chance") >= chanceTwo) and "Head" or "Torso")
+            if helper:GetValue("Silent Aim", "Enabled") and (helper:GetValue("Silent Aim", "Hit Chance") >= chanceOne) then
+                local target, entry, part = getClosest(silentaimfov.Position, helper:GetValue("Silent Aim", "Use FOV") and silentaimfov.Radius, helper:GetValue("Silent Aim", "Use Dead FOV") and silentaimdeadfov.Radius, helper:GetValue("Silent Aim", "Visible Check"), (helper:GetValue("Silent Aim", "Head Shot Chance") >= chanceTwo) and "Head" or "Torso")
 
                 if target then
                     local player = entry._player
@@ -3568,7 +3568,7 @@ LPH_JIT_MAX(function() -- Main Cheat
             local uniqueId, player, position, partName, theTicket, time = ...
             theTicket = theTicket + ticketAddition
 
-            if wapus:GetValue("Rage Bot", "Enabled") then
+            if helper:GetValue("Rage Bot", "Enabled") then
                 return
             end
 
@@ -3578,7 +3578,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
             ticketCache[theTicket] = true
             return send(self, name, uniqueId, player, position, partName, theTicket, time + newSpawnCache.latency + newSpawnCache.currentAddition)
-        elseif name == "falldamage" and wapus:GetValue("Movement", "No Fall Damage") then
+        elseif name == "falldamage" and helper:GetValue("Movement", "No Fall Damage") then
             return
         elseif name == "stance" then
             newSpawnCache.stance = ...
@@ -3589,7 +3589,7 @@ LPH_JIT_MAX(function() -- Main Cheat
                 local slot = args[1]
                 newSpawnCache.slot = slot
 
-                if wapus:GetValue("Knife Bot", "Kill All (May Despawn)") and not wapus:GetValue("Knife Bot", "Only When Holding Knife") then
+                if helper:GetValue("Knife Bot", "Kill All (May Despawn)") and not helper:GetValue("Knife Bot", "Only When Holding Knife") then
                     args[1] = 3
                 end
             end
@@ -3600,7 +3600,7 @@ LPH_JIT_MAX(function() -- Main Cheat
             local a, b, c = ...
             newSpawnCache.hasPinged = true
 
-            --if wapus:GetValue("Rage Bot", "Enabled") and wapus:GetValue("Rage Bot", "Firerate (May Cause Kicking)") then -- idk if this needs to be here i think it helps a little
+            --if helper:GetValue("Rage Bot", "Enabled") and helper:GetValue("Rage Bot", "Firerate (May Cause Kicking)") then -- idk if this needs to be here i think it helps a little
             --    if newSpawnCache.lastUpdate and newSpawnCache.lastOffsetUpdate then
             --        local time = network.getTime()
             --        if timeLag > 0 and newSpawnCache.latency ~= -timeLag then
@@ -3659,12 +3659,12 @@ LPH_JIT_MAX(function() -- Main Cheat
             return
         end
 
-        if wapus:GetValue("Anti Aim", "Enabled (May Cause Despawning)") then
-            if name == "stance" and wapus:GetValue("Anti Aim", "Force Stance") then
+        if helper:GetValue("Anti Aim", "Enabled (May Cause Despawning)") then
+            if name == "stance" and helper:GetValue("Anti Aim", "Force Stance") then
                 local stance = ...
-                stance = string.lower(wapus:GetValue("Anti Aim", "Set Stance"))
+                stance = string.lower(helper:GetValue("Anti Aim", "Set Stance"))
 
-                if wapus:GetValue("Third Person", "Apply Anti Aim To Character") and currentObj then
+                if helper:GetValue("Third Person", "Apply Anti Aim To Character") and currentObj then
                     currentObj:setStance(stance)
                 end
 
@@ -3714,14 +3714,14 @@ LPH_JIT_MAX(function() -- Main Cheat
     screenCull.step = LPH_NO_VIRTUALIZE(function(...)
         step(...)
 
-        if wapus:GetValue("Third Person", "Enabled") then
+        if helper:GetValue("Third Person", "Enabled") then
             local controller = weaponInterface.getActiveWeaponController()
 
-            if controller and (wapus:GetValue("Third Person", "Show Character While Aiming") or not controller:getActiveWeapon()._aiming) then
-                local cameraOffset = Vector3.new(wapus:GetValue("Third Person", "Camera Offset X"), wapus:GetValue("Third Person", "Camera Offset Y"), wapus:GetValue("Third Person", "Camera Offset Z"))
+            if controller and (helper:GetValue("Third Person", "Show Character While Aiming") or not controller:getActiveWeapon()._aiming) then
+                local cameraOffset = Vector3.new(helper:GetValue("Third Person", "Camera Offset X"), helper:GetValue("Third Person", "Camera Offset Y"), helper:GetValue("Third Person", "Camera Offset Z"))
                 local didHit = false
 
-                if wapus:GetValue("Third Person", "Camera Offset Always Visible") then
+                if helper:GetValue("Third Person", "Camera Offset Always Visible") then
                     local oldPosition = camera.CFrame.Position
                     local newPosition = camera.CFrame * cameraOffset
                     local dir = newPosition - oldPosition
@@ -3742,7 +3742,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local setCharacterRender = thirdPersonObject.setCharacterRender
     function thirdPersonObject:setCharacterRender(render) -- may cause lag but fixes people not rendering with third person
-        if wapus:GetValue("Third Person", "Enabled") then
+        if helper:GetValue("Third Person", "Enabled") then
             return setCharacterRender(self, render or (self._player ~= localplayer and camera:WorldToViewportPoint(self._replicationObject._receivedPosition or self:getRootPart().Position).Z > 0))
         end
 
@@ -3764,12 +3764,12 @@ LPH_JIT_MAX(function() -- Main Cheat
                 end
             end
 
-            if wapus:GetValue("Rage Bot", "Enabled") then
+            if helper:GetValue("Rage Bot", "Enabled") then
                 return
             end
 
-            if wapus:GetValue("Silent Aim", "Enabled") and (wapus:GetValue("Silent Aim", "Hit Chance") >= chanceOne) then
-                local target, entry, part = getClosest(silentaimfov.Position, wapus:GetValue("Silent Aim", "Use FOV") and silentaimfov.Radius, wapus:GetValue("Silent Aim", "Use Dead FOV") and silentaimdeadfov.Radius, wapus:GetValue("Silent Aim", "Visible Check"), (wapus:GetValue("Silent Aim", "Head Shot Chance") >= chanceTwo) and "Head" or "Torso")
+            if helper:GetValue("Silent Aim", "Enabled") and (helper:GetValue("Silent Aim", "Hit Chance") >= chanceOne) then
+                local target, entry, part = getClosest(silentaimfov.Position, helper:GetValue("Silent Aim", "Use FOV") and silentaimfov.Radius, helper:GetValue("Silent Aim", "Use Dead FOV") and silentaimdeadfov.Radius, helper:GetValue("Silent Aim", "Visible Check"), (helper:GetValue("Silent Aim", "Head Shot Chance") >= chanceTwo) and "Head" or "Torso")
 
                 if target then
                     local player = entry._player
@@ -3782,21 +3782,21 @@ LPH_JIT_MAX(function() -- Main Cheat
                 end
             end
 
-            if wapus:GetValue("World Visuals", "Bullet Tracers") or wapus:GetValue("World Visuals", "Impact Points") then
+            if helper:GetValue("World Visuals", "Bullet Tracers") or helper:GetValue("World Visuals", "Impact Points") then
                 local frames, hits = simulateBullet(bulletData.position, bulletData.velocity, bulletData.penetrationdepth)
 
-                if wapus:GetValue("World Visuals", "Bullet Tracers") then
-                    local endColor = wapus:GetValue("World Visuals", "Color One")
-                    local startColor = wapus:GetValue("World Visuals", "Color Two")
-                    local diameter = wapus:GetValue("World Visuals", "Tracers Size")
+                if helper:GetValue("World Visuals", "Bullet Tracers") then
+                    local endColor = helper:GetValue("World Visuals", "Color One")
+                    local startColor = helper:GetValue("World Visuals", "Color Two")
+                    local diameter = helper:GetValue("World Visuals", "Tracers Size")
                     local frameCount = #frames
 
                     for frame = 1, frameCount do -- god damn perfect bullet tracers
                         local origin, target = table.unpack(frames[frame])
                         local distance = (origin - target).Magnitude
                         local tracer = Instance.new("Part")
-                        tracer.Material = Enum.Material[wapus:GetValue("World Visuals", "Tracers Material")]
-                        tracer.Transparency = wapus:GetValue("World Visuals", "Tracers Transparency") * 0.01
+                        tracer.Material = Enum.Material[helper:GetValue("World Visuals", "Tracers Material")]
+                        tracer.Transparency = helper:GetValue("World Visuals", "Tracers Transparency") * 0.01
                         tracer.Anchored = true
                         tracer.CanCollide = false
                         tracer.Color = startColor:lerp(endColor, (frame - 1) / math.max(frameCount - 1, 1))
@@ -3805,7 +3805,7 @@ LPH_JIT_MAX(function() -- Main Cheat
                         tracer.CFrame = (CFrame.new(origin, target) * CFrame.Angles(0, math.rad(90), 0)) * CFrame.new(Vector3.new(distance * 0.5, 0, 0))
                         tracer.Parent = ignore
 
-                        task.delay(wapus:GetValue("World Visuals", "Duration"), function()
+                        task.delay(helper:GetValue("World Visuals", "Duration"), function()
                             local step = (1 - tracer.Transparency) / 10
 
                             for i = 1, 10 do
@@ -3818,20 +3818,20 @@ LPH_JIT_MAX(function() -- Main Cheat
                     end
                 end
 
-                if wapus:GetValue("World Visuals", "Impact Points") then
+                if helper:GetValue("World Visuals", "Impact Points") then
                     for wall = 1, #hits do
                         local point = Instance.new("Part")
-                        point.Material = Enum.Material[wapus:GetValue("World Visuals", "Points Material")]
-                        point.Transparency = wapus:GetValue("World Visuals", "Points Transparency") * 0.01
+                        point.Material = Enum.Material[helper:GetValue("World Visuals", "Points Material")]
+                        point.Transparency = helper:GetValue("World Visuals", "Points Transparency") * 0.01
                         point.Anchored = true
                         point.CanCollide = false
-                        point.Color = wapus:GetValue("World Visuals", "Points Color")
+                        point.Color = helper:GetValue("World Visuals", "Points Color")
                         point.Size = Vector3.new(0.25, 0.25, 0.25)
                         point.Shape = Enum.PartType.Ball
                         point.Position = hits[wall]
                         point.Parent = ignore
 
-                        task.delay(wapus:GetValue("World Visuals", "Duration"), function()
+                        task.delay(helper:GetValue("World Visuals", "Duration"), function()
                             local step = (1 - point.Transparency) / 10
 
                             for i = 1, 10 do
@@ -3845,16 +3845,16 @@ LPH_JIT_MAX(function() -- Main Cheat
                 end
             end
 
-            if wapus:GetValue("Backtracking", "Enabled") or wapus:GetValue("Hit Boxes", "Enabled") then
+            if helper:GetValue("Backtracking", "Enabled") or helper:GetValue("Hit Boxes", "Enabled") then
                 local ontouch = bulletData.ontouch
                 local extra = bulletData.extra
 
                 bulletData.ontouch = function(self, part, position, normal, exit, exitnorm) -- goated hitbox method
                     if not ticketCache[extra.bulletTicket] then
-                        if wapus:GetValue("Hit Boxes", "Enabled") and part:IsDescendantOf(hitboxObjects) then
+                        if helper:GetValue("Hit Boxes", "Enabled") and part:IsDescendantOf(hitboxObjects) then
                             ticketCache[extra.bulletTicket] = true
-                            send(network, "bullethit", extra.uniqueId, players[part.Name], position, wapus:GetValue("Hit Boxes", "Hit Part"), extra.bulletTicket + ticketAddition, network.getTime() + newSpawnCache.latency + newSpawnCache.currentAddition)
-                        elseif wapus:GetValue("Backtracking", "Enabled") and part:IsDescendantOf(backtrackObjects) then
+                            send(network, "bullethit", extra.uniqueId, players[part.Name], position, helper:GetValue("Hit Boxes", "Hit Part"), extra.bulletTicket + ticketAddition, network.getTime() + newSpawnCache.latency + newSpawnCache.currentAddition)
+                        elseif helper:GetValue("Backtracking", "Enabled") and part:IsDescendantOf(backtrackObjects) then
                             local model = part
 
                             while (model.ClassName ~= "Model" or model.Parent.ClassName ~= "Folder") do
@@ -3883,7 +3883,7 @@ LPH_JIT_MAX(function() -- Main Cheat
     local rearLayer = screenGui.DisplayScope.ImageRearLayer
     local updateScope = hudScopeInterface.updateScope
     function hudScopeInterface.updateScope(...)
-        if wapus:GetValue("Gun Mods", "No Sniper Scope") then -- more scripts need this
+        if helper:GetValue("Gun Mods", "No Sniper Scope") then -- more scripts need this
             frontLayer.ImageTransparency = 1
             rearLayer.ImageTransparency = 1
 
@@ -3916,7 +3916,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local applyImpulse = recoil.applyImpulse
     function recoil.applyImpulse(...)
-        if aimbotting or wapus:GetValue("Gun Mods", "No Recoil") then
+        if aimbotting or helper:GetValue("Gun Mods", "No Recoil") then
             return
         end
 
@@ -3925,7 +3925,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local reload = firearmObject.reload
     function firearmObject:reload()
-        if wapus:GetValue("Gun Mods", "Instant Reload") and self._spareCount > 0 then
+        if helper:GetValue("Gun Mods", "Instant Reload") and self._spareCount > 0 then
             if self._spareCount >= self._weaponData.magsize then
                 self._spareCount = self._spareCount - (self._weaponData.magsize - self._magCount)
                 self._magCount = self._weaponData.magsize
@@ -3944,7 +3944,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local computeWalkSway = firearmObject.computeWalkSway
     function firearmObject:computeWalkSway(dy, dx)
-        if wapus:GetValue("Gun Mods", "No Walk Sway") or aimbotting then
+        if helper:GetValue("Gun Mods", "No Walk Sway") or aimbotting then
             dy = 0
             dx = 0
         end
@@ -3954,7 +3954,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local computeGunSway = firearmObject.computeGunSway
     function firearmObject.computeGunSway(...)
-        if wapus:GetValue("Gun Mods", "No Gun Sway") or aimbotting then
+        if helper:GetValue("Gun Mods", "No Gun Sway") or aimbotting then
             return CFrame.identity
         end
 
@@ -3963,7 +3963,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local fromAxisAngle = cframeLib.fromAxisAngle
     function cframeLib.fromAxisAngle(x, y, z) -- luh freak
-        if aimbotting then -- or wapus:GetValue("Gun Mods", "No Camera Sway") then
+        if aimbotting then -- or helper:GetValue("Gun Mods", "No Camera Sway") then
             local controller = weaponInterface.getActiveWeaponController()
             local weapon = controller and controller:getActiveWeapon()
 
@@ -3977,20 +3977,20 @@ LPH_JIT_MAX(function() -- Main Cheat
     function modifyData.getModifiedData(data, ...)
         setreadonly(data, false)
 
-        if wapus:GetValue("Gun Mods", "No Spread") then
+        if helper:GetValue("Gun Mods", "No Spread") then
             data.hipfirespread = 0
             data.hipfirestability = 99999
             data.hipfirespreadrecover = 99999
         end
 
-        if wapus:GetValue("Gun Mods", "Small Crosshair") then
+        if helper:GetValue("Gun Mods", "Small Crosshair") then
             data.crosssize = 10
             data.crossexpansion = 0
             data.crossspeed = 100
             data.crossdamper = 1
         end
 
-        if wapus:GetValue("Gun Mods", "No Crosshair") then
+        if helper:GetValue("Gun Mods", "No Crosshair") then
             data.crosssize = 1000000000
             data.crossexpansion = 0
             data.crossspeed = 100
@@ -4057,20 +4057,20 @@ LPH_JIT_MAX(function() -- Main Cheat
         if makeClone then
             setreadonly(data, false)
 
-            if wapus:GetValue("Gun Mods", "No Spread") then
+            if helper:GetValue("Gun Mods", "No Spread") then
                 data.hipfirespread = 0
                 data.hipfirestability = 99999
                 data.hipfirespreadrecover = 99999
             end
 
-            if wapus:GetValue("Gun Mods", "Small Crosshair") then
+            if helper:GetValue("Gun Mods", "Small Crosshair") then
                 data.crosssize = 10
                 data.crossexpansion = 0
                 data.crossspeed = 100
                 data.crossdamper = 1
             end
 
-            if wapus:GetValue("Gun Mods", "No Crosshair") then
+            if helper:GetValue("Gun Mods", "No Crosshair") then
                 data.crosssize = 1000000000
                 data.crossexpansion = 0
                 data.crossspeed = 100
@@ -4134,12 +4134,12 @@ LPH_JIT_MAX(function() -- Main Cheat
     local mainStep = cameraObject.step
     --function cameraObject.step(self, dt)
     cameraObject.step = LPH_NO_VIRTUALIZE(function(self, dt)
-        if aimbotting or wapus:GetValue("Gun Mods", "No Camera Sway") then
+        if aimbotting or helper:GetValue("Gun Mods", "No Camera Sway") then
             mainStep(self, 0)
             self._lookDt = dt
         end
 
-        if wapus:GetValue('Gun Mods', 'No Camera Bob') then
+        if helper:GetValue('Gun Mods', 'No Camera Bob') then
             local characterObject = charInterface.getCharacterObject();
             local oldSpeed = characterObject._speed;
 
@@ -4148,7 +4148,7 @@ LPH_JIT_MAX(function() -- Main Cheat
             characterObject._speed = oldSpeed;
         end;
 
-        if aimbotting or wapus:GetValue("Gun Mods", "No Camera Sway") or wapus:GetValue('Gun Mods', 'No Camera Bob') then
+        if aimbotting or helper:GetValue("Gun Mods", "No Camera Sway") or helper:GetValue('Gun Mods', 'No Camera Bob') then
             return;
         end;
 
@@ -4156,7 +4156,7 @@ LPH_JIT_MAX(function() -- Main Cheat
     end)
 --[[ synz has upval instability
     debug.setupvalue(firearmObject.computeGunSway, 1, {getTime = function()
-        if wapus:GetValue("Gun Mods", "No Gun Sway") or aimbotting then
+        if helper:GetValue("Gun Mods", "No Gun Sway") or aimbotting then
             return 0
         end
 
@@ -4169,20 +4169,20 @@ LPH_JIT_MAX(function() -- Main Cheat
         if makeClone then
             setreadonly(data, false) -- prolly dont still need this but its here
 
-            if wapus:GetValue("Gun Mods", "No Spread") then
+            if helper:GetValue("Gun Mods", "No Spread") then
                 data.hipfirespread = 0
                 data.hipfirestability = 99999
                 data.hipfirespreadrecover = 99999
             end
 
-            if wapus:GetValue("Gun Mods", "Small Crosshair") then
+            if helper:GetValue("Gun Mods", "Small Crosshair") then
                 data.crosssize = 10
                 data.crossexpansion = 0
                 data.crossspeed = 100
                 data.crossdamper = 1
             end
 
-            if wapus:GetValue("Gun Mods", "No Crosshair") then
+            if helper:GetValue("Gun Mods", "No Crosshair") then
                 data.crosssize = 1000000000
                 data.crossexpansion = 0
                 data.crossspeed = 100
@@ -4194,7 +4194,7 @@ LPH_JIT_MAX(function() -- Main Cheat
     end, getWeaponModule = contentDatabase.getWeaponModule, __index = contentDatabase})
 
     debug.setupvalue(cameraObject.step, 2, {fromAxisAngle = function(...)
-        return (aimbotting or wapus:GetValue("Gun Mods", "No Camera Sway")) and CFrame.identity or cframeLib.fromAxisAngle(...)
+        return (aimbotting or helper:GetValue("Gun Mods", "No Camera Sway")) and CFrame.identity or cframeLib.fromAxisAngle(...)
     end, __index = cframeLib})]]
 
     local getUnlocksData = playerDataUtils.getUnlocksData
@@ -4246,12 +4246,12 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local playSoundId = audioSystem.playSoundId
     function audioSystem.playSoundId(assetId, priority, volume, pitch, part, maxPartDist, pitchRange, randomPitch, emitterSize, rollOffMode, playOnRemove, looped)
-        if wapus:GetValue("Sounds", "Shoot Sound") ~= "None" then
+        if helper:GetValue("Sounds", "Shoot Sound") ~= "None" then
             local controller = weaponInterface.getActiveWeaponController()
             local weapon = controller and controller:getActiveWeapon()
 
             if weapon and assetId == weapon:getWeaponStat("firesoundid") then
-                return playSoundId(customAudios[wapus:GetValue("Sounds", "Shoot Sound")], priority, volume)
+                return playSoundId(customAudios[helper:GetValue("Sounds", "Shoot Sound")], priority, volume)
             end
         end
 
@@ -4262,14 +4262,14 @@ LPH_JIT_MAX(function() -- Main Cheat
     function audioSystem.playSound(soundName, ...)
         local args = table.pack(...)
 
-        if wapus:GetValue("Sounds", "Hit Sound") ~= "None" and soundName == "hitmarker" then
-            return playSoundId(customAudios[wapus:GetValue("Sounds", "Hit Sound")], 1, args[3])
-        elseif wapus:GetValue("Sounds", "Footstep Sound") ~= "None" and (args[1] == "SelfFoley") then
-            return playSoundId(customAudios[wapus:GetValue("Sounds", "Footstep Sound")], args[2], args[3])
-        elseif wapus:GetValue("Sounds", "Kill Sound") ~= "None" and (soundName == "killshot" or soundName == "headshotkill") then
-            return playSoundId(customAudios[wapus:GetValue("Sounds", "Kill Sound")], 1, args[3])
-        elseif wapus:GetValue("Sounds", "Got Hit Sound") ~= "None" and (soundName == "crackSmall" or soundName == "crackBig") then
-            return playSoundId(customAudios[wapus:GetValue("Sounds", "Got Hit Sound")], 1, args[3])
+        if helper:GetValue("Sounds", "Hit Sound") ~= "None" and soundName == "hitmarker" then
+            return playSoundId(customAudios[helper:GetValue("Sounds", "Hit Sound")], 1, args[3])
+        elseif helper:GetValue("Sounds", "Footstep Sound") ~= "None" and (args[1] == "SelfFoley") then
+            return playSoundId(customAudios[helper:GetValue("Sounds", "Footstep Sound")], args[2], args[3])
+        elseif helper:GetValue("Sounds", "Kill Sound") ~= "None" and (soundName == "killshot" or soundName == "headshotkill") then
+            return playSoundId(customAudios[helper:GetValue("Sounds", "Kill Sound")], 1, args[3])
+        elseif helper:GetValue("Sounds", "Got Hit Sound") ~= "None" and (soundName == "crackSmall" or soundName == "crackBig") then
+            return playSoundId(customAudios[helper:GetValue("Sounds", "Got Hit Sound")], 1, args[3])
         end
 
         return playSound(soundName, ...)
@@ -4288,12 +4288,12 @@ LPH_JIT_MAX(function() -- Main Cheat
     function effects.breakwindow(part, receiveWindow, netTime)
         if part.Name ~= "Window" then
             return
-        elseif wapus:GetValue("Sounds", "Glass Breaking Sound") ~= "None" then
+        elseif helper:GetValue("Sounds", "Glass Breaking Sound") ~= "None" then
             misc.ChildAdded:Connect(function(child)
                 if child.ClassName == "Part" and child.CFrame == part.CFrame then
                     child.ChildAdded:Connect(function(sound)
                         if sound.ClassName == "Sound" then
-                            sound.SoundId = customAudios[wapus:GetValue("Sounds", "Glass Breaking Sound")] or ""
+                            sound.SoundId = customAudios[helper:GetValue("Sounds", "Glass Breaking Sound")] or ""
                         end
                     end)
                 end
@@ -4306,12 +4306,12 @@ LPH_JIT_MAX(function() -- Main Cheat
     local setBaseWalkSpeed = charObject.setBaseWalkSpeed
     function charObject:setBaseWalkSpeed(speed)
         newSpawnCache.walkSpeed = newSpawnCache.walkSpeed or speed
-        return setBaseWalkSpeed(self, wapus:GetValue("Movement", "Walk Speed") and wapus:GetValue("Movement", "Set Speed") or speed)
+        return setBaseWalkSpeed(self, helper:GetValue("Movement", "Walk Speed") and helper:GetValue("Movement", "Set Speed") or speed)
     end
 
     local jump = charObject.jump
     function charObject:jump(height, vaulting)
-        return jump(self, 4 + (wapus:GetValue("Movement", "Jump Power") and wapus:GetValue("Movement", "Height Addition") or 0), vaulting)
+        return jump(self, 4 + (helper:GetValue("Movement", "Jump Power") and helper:GetValue("Movement", "Height Addition") or 0), vaulting)
     end
 
     callbackList["Movement%%Walk Speed"] = function(state)
@@ -4319,7 +4319,7 @@ LPH_JIT_MAX(function() -- Main Cheat
             local object = charInterface.getCharacterObject()
 
             if state then
-                setBaseWalkSpeed(object, wapus:GetValue("Movement", "Set Speed"))
+                setBaseWalkSpeed(object, helper:GetValue("Movement", "Set Speed"))
             else
                 setBaseWalkSpeed(object, newSpawnCache.walkSpeed)
             end
@@ -4348,11 +4348,11 @@ LPH_JIT_MAX(function() -- Main Cheat
     --end
 
     callbackList["Tweaks%%Custom Kill Notification"] = function(state)
-        hudnotify.typeList.kill[1] = state and wapus:GetValue("Tweaks", "Notification Text") or "Enemy Killed!"
+        hudnotify.typeList.kill[1] = state and helper:GetValue("Tweaks", "Notification Text") or "Enemy Killed!"
     end
 
     callbackList["Tweaks%%Notification Text"] = function(state)
-        if wapus:GetValue("Tweaks", "Custom Kill Notification") then
+        if helper:GetValue("Tweaks", "Custom Kill Notification") then
             hudnotify.typeList.kill[1] = state
         end
     end
@@ -4410,23 +4410,23 @@ LPH_JIT_MAX(function() -- Main Cheat
         callbackList["Anti Aim%%Spin Bot"]()
 
         if charInterface.isAlive() then
-            if wapus:GetValue("Third Person", "Show Character") and wapus:GetValue("Third Person", "Apply Anti Aim To Character") and currentObj then
-                if wapus:GetValue("Anti Aim", "Force Stance") then
-                    local stance = state and wapus:GetValue("Anti Aim", "Set Stance") or newSpawnCache.stance or "stand"
+            if helper:GetValue("Third Person", "Show Character") and helper:GetValue("Third Person", "Apply Anti Aim To Character") and currentObj then
+                if helper:GetValue("Anti Aim", "Force Stance") then
+                    local stance = state and helper:GetValue("Anti Aim", "Set Stance") or newSpawnCache.stance or "stand"
                     currentObj:setStance(stance)
                 end
 
-                if wapus:GetValue("Anti Aim", "Jitter") then
+                if helper:GetValue("Anti Aim", "Jitter") then
                     currentObj:setAim(false)
                 end
             end
 
-            if wapus:GetValue("Anti Aim", "Force Stance") then
-                local stance = state and wapus:GetValue("Anti Aim", "Set Stance") or newSpawnCache.stance or "stand"
+            if helper:GetValue("Anti Aim", "Force Stance") then
+                local stance = state and helper:GetValue("Anti Aim", "Set Stance") or newSpawnCache.stance or "stand"
                 send(network, "stance", stance)
             end
 
-            if wapus:GetValue("Anti Aim", "Jitter") and not state then
+            if helper:GetValue("Anti Aim", "Jitter") and not state then
                 send(network, "aim", false)
             end
         end
@@ -4434,7 +4434,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local lastPos
     callbackList["Third Person%%Enabled"] = function(state)
-        if charInterface.isAlive() and wapus:GetValue("Third Person", "Show Character") then
+        if charInterface.isAlive() and helper:GetValue("Third Person", "Show Character") then
             if state then
                 started = true
             else
@@ -4566,7 +4566,7 @@ LPH_JIT_MAX(function() -- Main Cheat
     end
 
     --table.insert(connectionList, ignore.ChildAdded:Connect(function(ref)
-    --    if wapus:GetValue("Movement", "Noclip") and ref.ClassName == "Model" then
+    --    if helper:GetValue("Movement", "Noclip") and ref.ClassName == "Model" then
     --        task.delay(0.5, function()
     --            for _, part in ref:GetDescendants() do
     --                if part.ClassName:find("Part") then
@@ -4580,8 +4580,8 @@ LPH_JIT_MAX(function() -- Main Cheat
     crossdot.Filled = true
     crossdot.Size = Vector2.new(1, 1)
     local function updateCrosshair()
-        local enabled = wapus:GetValue("Crosshair", "Enabled")
-        crossdot.Visible = enabled and wapus:GetValue("Crosshair", "Show Dot")
+        local enabled = helper:GetValue("Crosshair", "Enabled")
+        crossdot.Visible = enabled and helper:GetValue("Crosshair", "Show Dot")
 
         if cross1.Visible ~= enabled then
             cross1.Visible = enabled
@@ -4590,8 +4590,8 @@ LPH_JIT_MAX(function() -- Main Cheat
             cross4.Visible = enabled
         end
 
-        if not wapus:GetValue("Crosshair", "Rainbow Crosshair") then
-            local color = wapus:GetValue("Crosshair", "Crosshair Color")
+        if not helper:GetValue("Crosshair", "Rainbow Crosshair") then
+            local color = helper:GetValue("Crosshair", "Crosshair Color")
             crossdot.Color = color
             cross1.Color = color
             cross2.Color = color
@@ -4601,15 +4601,15 @@ LPH_JIT_MAX(function() -- Main Cheat
     end
 
     local function updateCrosshairPos(force) -- i didnt want to make this
-        local barrel = wapus:GetValue("Crosshair", "Follow Recoil") and getBarrelLocation()
+        local barrel = helper:GetValue("Crosshair", "Follow Recoil") and getBarrelLocation()
         if barrel then barrel = (barrel.Z > 0 and Vector2.new(barrel.X, barrel.Y)); end
         local middle = barrel or (camera.ViewportSize * 0.5)
         local x, y = middle.X, middle.Y
-        local sx = wapus:GetValue("Crosshair", "X Space") * 0.5
-        local sy = wapus:GetValue("Crosshair", "Y Space") * 0.5
-        local w = wapus:GetValue("Crosshair", "X Size")
-        local h = wapus:GetValue("Crosshair", "Y Size")
-        local speed = wapus:GetValue("Crosshair", "Spin Speed")
+        local sx = helper:GetValue("Crosshair", "X Space") * 0.5
+        local sy = helper:GetValue("Crosshair", "Y Space") * 0.5
+        local w = helper:GetValue("Crosshair", "X Size")
+        local h = helper:GetValue("Crosshair", "Y Size")
+        local speed = helper:GetValue("Crosshair", "Spin Speed")
         crossdot.Position = middle
 
         if speed == 0 or force then
@@ -4665,11 +4665,11 @@ LPH_JIT_MAX(function() -- Main Cheat
             local arm = model:FindFirstChild("Arm")
             local prefix = arm and "Arm " or "Gun "
 
-            if wapus:GetValue("Chams", prefix .. "Chams") then
+            if helper:GetValue("Chams", prefix .. "Chams") then
                 local properties, uncache = cham.new(model, {
-                    Material = Enum.Material[wapus:GetValue("Chams", prefix .. "Material")],
-                    Transparency = wapus:GetValue("Chams", prefix .. "Transparency") * 0.01,
-                    Color = wapus:GetValue("Chams", prefix .. "Color")
+                    Material = Enum.Material[helper:GetValue("Chams", prefix .. "Material")],
+                    Transparency = helper:GetValue("Chams", prefix .. "Transparency") * 0.01,
+                    Color = helper:GetValue("Chams", prefix .. "Color")
                 }, false, true, false)
 
                 if properties then
@@ -4759,7 +4759,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local startvotekick = networkConnections.startvotekick
     function networkConnections.startvotekick(username, delay, votes)
-        if wapus:GetValue("Server Hopper", "Server Hop On Votekick") and username == localPlayer.Name then -- this should work mf
+        if helper:GetValue("Server Hopper", "Server Hop On Votekick") and username == localPlayer.Name then -- this should work mf
             hopServers()
         end
 
@@ -4772,20 +4772,20 @@ LPH_JIT_MAX(function() -- Main Cheat
         -- 05/18/25
         -- hello pf uses shitty chat now
 
-        if wapus:GetValue("Chat Spam", "Enabled") then
-            local list = chatSpamLists[wapus:GetValue("Chat Spam", "Spam List")]
+        if helper:GetValue("Chat Spam", "Enabled") then
+            local list = chatSpamLists[helper:GetValue("Chat Spam", "Spam List")]
             local newSpamIndex = 1
 
             if #list ~= 1 then
                 repeat newSpamIndex = math.random(1, #list) until newSpamIndex ~= lastSpamIndex
             end
 
-            --network:send("sendChatMessage", list[newSpamIndex], wapus:GetValue("Chat Spam", "Team Chat"))
+            --network:send("sendChatMessage", list[newSpamIndex], helper:GetValue("Chat Spam", "Team Chat"))
             globalChannel:SendAsync(list[newSpamIndex]);
             lastSpamIndex = newSpamIndex
         end
 
-        task.delay(wapus:GetValue("Chat Spam", "Spam Delay"), chatSpam)
+        task.delay(helper:GetValue("Chat Spam", "Spam Delay"), chatSpam)
     end
     task.delay(1, chatSpam)
 
@@ -4831,8 +4831,8 @@ LPH_JIT_MAX(function() -- Main Cheat
             if root then
                 newSpawnCache.init = true
 
-                if newSpawnCache.spawned and newSpawnCache.lastUpdate and (clock - newSpawnCache.spawnTime) > 1 and (nextScan - clock) <= 0 and not roundSystem.roundLock and ((not wapus:GetValue("Knife Bot", "Only When Holding Knife")) or (newSpawnCache.slot == 3)) then
-                    local closestCharacters = getClosestPlayers(newSpawnCache.lastUpdate, true, wapus:GetValue("Knife Bot", "Only Kill Target Status"), wapus:GetValue("Knife Bot", "Whitelist Friendly Status"))
+                if newSpawnCache.spawned and newSpawnCache.lastUpdate and (clock - newSpawnCache.spawnTime) > 1 and (nextScan - clock) <= 0 and not roundSystem.roundLock and ((not helper:GetValue("Knife Bot", "Only When Holding Knife")) or (newSpawnCache.slot == 3)) then
+                    local closestCharacters = getClosestPlayers(newSpawnCache.lastUpdate, true, helper:GetValue("Knife Bot", "Only Kill Target Status"), helper:GetValue("Knife Bot", "Whitelist Friendly Status"))
 
                     if closestCharacters then
                         for entryIndex = 1, #closestCharacters do
@@ -4906,7 +4906,7 @@ LPH_JIT_MAX(function() -- Main Cheat
         end
 
         if charInterface.isAlive() then
-            if not wapus:GetValue("Knife Bot", "Only When Holding Knife") and newSpawnCache.slot ~= 3 then
+            if not helper:GetValue("Knife Bot", "Only When Holding Knife") and newSpawnCache.slot ~= 3 then
                 if state then
                     send(network, "equip", 3, network.getTime() + newSpawnCache.latency + newSpawnCache.currentAddition)
                 else
@@ -4917,7 +4917,7 @@ LPH_JIT_MAX(function() -- Main Cheat
     end
 
     callbackList["Knife Bot%%Only When Holding Knife"] = function(state)
-        if wapus:GetValue("Knife Bot", "Kill All (May Despawn)") and charInterface.isAlive() and newSpawnCache.slot ~= 3 then
+        if helper:GetValue("Knife Bot", "Kill All (May Despawn)") and charInterface.isAlive() and newSpawnCache.slot ~= 3 then
             if state then
                 send(network, "equip", newSpawnCache.slot, network.getTime() + newSpawnCache.latency + newSpawnCache.currentAddition)
             else
@@ -5419,7 +5419,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     local customModel
     callbackList["Custom Model%%Asset ID"] = function(state)
-        if wapus:GetValue("Custom Model", "Custom Character Model") then
+        if helper:GetValue("Custom Model", "Custom Character Model") then
             if customModel then
                 customModel.Parent = nil
             end
@@ -5440,7 +5440,7 @@ LPH_JIT_MAX(function() -- Main Cheat
             end
         end
     end
-    callbackList["Custom Model%%Asset ID"](wapus:GetValue("Custom Model", "Asset ID"))
+    callbackList["Custom Model%%Asset ID"](helper:GetValue("Custom Model", "Asset ID"))
 
     callbackList["Custom Model%%Custom Character Model"] = function(state)
         if not state then
@@ -5448,7 +5448,7 @@ LPH_JIT_MAX(function() -- Main Cheat
                 customModel.Parent = nil
             end
         else
-            callbackList["Custom Model%%Asset ID"](wapus:GetValue("Custom Model", "Asset ID"))
+            callbackList["Custom Model%%Asset ID"](helper:GetValue("Custom Model", "Asset ID"))
         end
     end
 
@@ -5476,7 +5476,7 @@ LPH_JIT_MAX(function() -- Main Cheat
         end;
 
         if controller and weapon then
-            local isHidden = (hidden or weapon._blackScoped or ((wapus:GetValue("Third Person", "Enabled") and wapus:GetValue("Third Person", "Show Character")) and (wapus:GetValue("Third Person", "Show Character While Aiming") or not aiming)))
+            local isHidden = (hidden or weapon._blackScoped or ((helper:GetValue("Third Person", "Enabled") and helper:GetValue("Third Person", "Show Character")) and (helper:GetValue("Third Person", "Show Character While Aiming") or not aiming)))
             if isHidden then
                 weapon._isHidden = false -- shit fix lmao
                 weapon:hideModel()
@@ -5488,15 +5488,15 @@ LPH_JIT_MAX(function() -- Main Cheat
 
         if customModel and rootPart then
             local part = customModel.ClassName == "Model" and customModel.PrimaryPart or customModel
-            part.CFrame = rootPart.CFrame * CFrame.new(wapus:GetValue("Custom Model", "Asset Offset X"), wapus:GetValue("Custom Model", "Asset Offset Y"), wapus:GetValue("Custom Model", "Asset Offset Z"))
+            part.CFrame = rootPart.CFrame * CFrame.new(helper:GetValue("Custom Model", "Asset Offset X"), helper:GetValue("Custom Model", "Asset Offset Y"), helper:GetValue("Custom Model", "Asset Offset Z"))
         end
 
-        if wapus:GetValue("Third Person", "Enabled") and wapus:GetValue("Third Person", "Show Character") then
+        if helper:GetValue("Third Person", "Enabled") and helper:GetValue("Third Person", "Show Character") then
             deltaTime = deltaTime + ndt
 
             if rootPart then
                 local position = rootPart.Position;
-                if wapus:GetValue('Anti Aim', 'Fake Lag') then
+                if helper:GetValue('Anti Aim', 'Fake Lag') then
                     position = newSpawnCache.lastUpdate;
                 end;
                 lastPos = lastPos or position
@@ -5519,22 +5519,22 @@ LPH_JIT_MAX(function() -- Main Cheat
                             end;
                         end;
 
-                        if wapus:GetValue("More Chams", "Third Person Character Chams") then
+                        if helper:GetValue("More Chams", "Third Person Character Chams") then
                             local _, uncache = cham.new(currentObj._character, {
-                                Transparency = wapus:GetValue("More Chams", "Character Transparency") * 0.01,
-                                Material = Enum.Material[wapus:GetValue("More Chams", "Character Material")],
-                                Color = wapus:GetValue("More Chams", "Character Color")
+                                Transparency = helper:GetValue("More Chams", "Character Transparency") * 0.01,
+                                Material = Enum.Material[helper:GetValue("More Chams", "Character Material")],
+                                Color = helper:GetValue("More Chams", "Character Color")
                             }, false, true, false)
                             objectChamUncache = uncache;
                         end
 
-                        if wapus:GetValue("Anti Aim", "Enabled (May Cause Despawning)") and wapus:GetValue("Anti Aim", "Force Stance") and wapus:GetValue("Third Person", "Apply Anti Aim To Character") and currentObj then
-                            currentObj:setStance(string.lower(wapus:GetValue("Anti Aim", "Set Stance")))
+                        if helper:GetValue("Anti Aim", "Enabled (May Cause Despawning)") and helper:GetValue("Anti Aim", "Force Stance") and helper:GetValue("Third Person", "Apply Anti Aim To Character") and currentObj then
+                            currentObj:setStance(string.lower(helper:GetValue("Anti Aim", "Set Stance")))
                         end
                     end
 
                     local angles = cameraInterface:getActiveCamera():getAngles()
-                    if wapus:GetValue("Anti Aim", "Enabled (May Cause Despawning)") and wapus:GetValue("Third Person", "Apply Anti Aim To Character") then
+                    if helper:GetValue("Anti Aim", "Enabled (May Cause Despawning)") and helper:GetValue("Third Person", "Apply Anti Aim To Character") then
                         angles = applyAAAngles(angles)
                     end
 
@@ -5567,7 +5567,7 @@ LPH_JIT_MAX(function() -- Main Cheat
                     lastTime = clockTime
                     started = false
 
-                    if not wapus:GetValue("Third Person", "Show Character While Aiming") and controller and aiming then
+                    if not helper:GetValue("Third Person", "Show Character While Aiming") and controller and aiming then
                         --currentObj:setCharacterRender(false)
                         setCharacterRender(currentObj, false)
                     end
@@ -5585,14 +5585,14 @@ LPH_JIT_MAX(function() -- Main Cheat
             end
         end
 
-        if wapus:GetValue("Rage Bot", "Enabled") and clockTime > nextShot and not roundSystem.roundLock and not wapus:GetValue("Knife Bot", "Kill All (May Despawn)") then --  and newSpawnCache.hasPinged
+        if helper:GetValue("Rage Bot", "Enabled") and clockTime > nextShot and not roundSystem.roundLock and not helper:GetValue("Knife Bot", "Kill All (May Despawn)") then --  and newSpawnCache.hasPinged
             --[[if weapon and weapon._weaponData then
                 weapon:shoot(true)
             end]]
 
             if weapon and weapon._weaponData and newSpawnCache.lastUpdate and not teleporting then
                 local origin = newSpawnCache.lastUpdate
-                local closestPlayers = getClosestPlayers(origin, false, wapus:GetValue("Rage Bot", "Only Shoot Target Status"), wapus:GetValue("Rage Bot", "Whitelist Friendly Status"))
+                local closestPlayers = getClosestPlayers(origin, false, helper:GetValue("Rage Bot", "Only Shoot Target Status"), helper:GetValue("Rage Bot", "Whitelist Friendly Status"))
                 local data = weapon._weaponData
                 local penetration = data.penetrationdepth
                 local speed = data.bulletspeed
@@ -5637,7 +5637,7 @@ LPH_JIT_MAX(function() -- Main Cheat
                                 --ticketCache[ticket] = true
                             end
 
-                            if wapus:GetValue("Rage Bot", "Shoot Effects") and weapon._barrelPart then
+                            if helper:GetValue("Rage Bot", "Shoot Effects") and weapon._barrelPart then
                                 local barrel = weapon._barrelPart
 
                                 effects.muzzleflash(barrel, data.hideflash, 0.9)
@@ -5664,7 +5664,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
                             local fireDelay = 60 / (data.variablefirerate and data.firerate[weapon._firemodeIndex] or data.firerate)
 
-                            --if wapus:GetValue("Rage Bot", "Firerate (May Cause Kicking)") then
+                            --if helper:GetValue("Rage Bot", "Firerate (May Cause Kicking)") then
                             --    if (newSpawnCache.currentAddition + fireDelay) <= timeRange then
                             --        newSpawnCache.currentAddition += fireDelay
                             --        newSpawnCache.lastOffsetUpdate = network.getTime()
@@ -5699,7 +5699,7 @@ LPH_JIT_MAX(function() -- Main Cheat
         end
 
         if controller and weapon then
-            local isHidden = (hidden or weapon._blackScoped or ((wapus:GetValue("Third Person", "Enabled") and wapus:GetValue("Third Person", "Show Character")) and (wapus:GetValue("Third Person", "Show Character While Aiming") or not aiming)))
+            local isHidden = (hidden or weapon._blackScoped or ((helper:GetValue("Third Person", "Enabled") and helper:GetValue("Third Person", "Show Character")) and (helper:GetValue("Third Person", "Show Character While Aiming") or not aiming)))
             if isHidden then
                 weapon._isHidden = false -- shit fix lmao
                 weapon:hideModel()
@@ -5711,7 +5711,7 @@ LPH_JIT_MAX(function() -- Main Cheat
 
         if customModel and rootPart then
             local part = customModel.ClassName == "Model" and customModel.PrimaryPart or customModel
-            customModel.CFrame = rootPart.CFrame * CFrame.new(wapus:GetValue("Custom Model", "Asset Offset X"), wapus:GetValue("Custom Model", "Asset Offset Y"), wapus:GetValue("Custom Model", "Asset Offset Z"))
+            customModel.CFrame = rootPart.CFrame * CFrame.new(helper:GetValue("Custom Model", "Asset Offset X"), helper:GetValue("Custom Model", "Asset Offset Y"), helper:GetValue("Custom Model", "Asset Offset Z"))
         end
 
         replicationInterface.operateOnAllEntries(function(player, entry)
@@ -5729,22 +5729,22 @@ LPH_JIT_MAX(function() -- Main Cheat
         table.insert(movementCache.time, 1, clockTime)
         table.remove(movementCache.time, 16)
 
-        if wapus:GetValue("Anti Aim", "Enabled (May Cause Despawning)") and wapus:GetValue("Anti Aim", "Jitter") and rootPart and (clockTime - lastJitter) > (1 / wapus:GetValue("Anti Aim", "Jitter Speed") / 2) then
+        if helper:GetValue("Anti Aim", "Enabled (May Cause Despawning)") and helper:GetValue("Anti Aim", "Jitter") and rootPart and (clockTime - lastJitter) > (1 / helper:GetValue("Anti Aim", "Jitter Speed") / 2) then
             lastJitterStarted = not lastJitterStarted
             send(network, "aim", lastJitterStarted)
             lastJitter = clockTime
 
-            if wapus:GetValue("Third Person", "Apply Anti Aim To Character") and currentObj then
+            if helper:GetValue("Third Person", "Apply Anti Aim To Character") and currentObj then
                 currentObj:setAim(lastJitterStarted)
             end
         end
 
-        if wapus:GetValue("Movement", "Bunny Hop") and rootPart and (not wapus:GetValue("Movement", "Only While Jumping") or userInputService:IsKeyDown(Enum.KeyCode.Space)) then
+        if helper:GetValue("Movement", "Bunny Hop") and rootPart and (not helper:GetValue("Movement", "Only While Jumping") or userInputService:IsKeyDown(Enum.KeyCode.Space)) then
             currentCharObject._lastJumpTime = 0
-            currentCharObject:jump(4 + (wapus:GetValue("Movement", "Jump Power") and wapus:GetValue("Movement", "Height Addition") or 0))
+            currentCharObject:jump(4 + (helper:GetValue("Movement", "Jump Power") and helper:GetValue("Movement", "Height Addition") or 0))
         end
 
-        if wapus:GetValue("Movement", "Noclip") and rootPart then
+        if helper:GetValue("Movement", "Noclip") and rootPart then
             local ref = ignore:FindFirstChildOfClass("Model")
 
             if ref then
@@ -5757,7 +5757,7 @@ LPH_JIT_MAX(function() -- Main Cheat
         end
 
         --[[
-        if false then --wapus:GetValue("Movement", "Fly") and rootPart then
+        if false then --helper:GetValue("Movement", "Fly") and rootPart then
             local cframe = camera.CFrame
             local direction = Vector3.zero
             local forward = cframe.LookVector
@@ -5791,27 +5791,27 @@ LPH_JIT_MAX(function() -- Main Cheat
                 rootPart.Anchored = true
             else
                 rootPart.Anchored = false
-                rootPart.Velocity = direction.Unit * wapus:GetValue("Movement", "Fly Speed")
+                rootPart.Velocity = direction.Unit * helper:GetValue("Movement", "Fly Speed")
             end
         end
         ]]
 
-        if wapus:GetValue("Hit Boxes", "Enabled") then
+        if helper:GetValue("Hit Boxes", "Enabled") then
             replicationInterface.operateOnAllEntries(function(player, entry)
                 if entry._isEnemy then
                     local sphere = hitboxObjects:FindFirstChild(player.Name)
 
                     if entry._receivedPosition then
                         if not sphere then
-                            local size = wapus:GetValue("Hit Boxes", "Size")
+                            local size = helper:GetValue("Hit Boxes", "Size")
                             sphere = Instance.new("Part")
                             sphere.Name = player.Name
                             sphere.CanCollide = true
                             sphere.Shape = Enum.PartType.Ball
                             sphere.Size = Vector3.new(size, size, size)
-                            sphere.Material = Enum.Material[wapus:GetValue("Hit Boxes", "Material")]
-                            sphere.Transparency = wapus:GetValue("Hit Boxes", "Transparency") * 0.01
-                            sphere.Color = wapus:GetValue("Hit Boxes", "Color")
+                            sphere.Material = Enum.Material[helper:GetValue("Hit Boxes", "Material")]
+                            sphere.Transparency = helper:GetValue("Hit Boxes", "Transparency") * 0.01
+                            sphere.Color = helper:GetValue("Hit Boxes", "Color")
                             sphere.Parent = hitboxObjects
                         end
 
@@ -5823,8 +5823,8 @@ LPH_JIT_MAX(function() -- Main Cheat
             end)
         end
 
-        if wapus:GetValue("Backtracking", "Enabled") then
-            local delay = 1 / wapus:GetValue("Backtracking", "Refresh Rate")
+        if helper:GetValue("Backtracking", "Enabled") then
+            local delay = 1 / helper:GetValue("Backtracking", "Refresh Rate")
 
             if clockTime > backtrackTime + delay then
                 replicationInterface.operateOnAllEntries(function(player, entry)
@@ -5834,7 +5834,7 @@ LPH_JIT_MAX(function() -- Main Cheat
                     if entry._isEnemy and character then
                         local clone
 
-                        if wapus:GetValue("Backtracking", "Clone Character") then
+                        if helper:GetValue("Backtracking", "Clone Character") then
                             clone = character:Clone()
                         else
                             clone = Instance.new("Model")
@@ -5848,16 +5848,16 @@ LPH_JIT_MAX(function() -- Main Cheat
 
                         clone.Name = player.Name
                         local properties = {
-                            Material = Enum.Material[wapus:GetValue("Backtracking", "Character Material")],
-                            Transparency = wapus:GetValue("Backtracking", "Character Transparency") * 0.01,
-                            Color = wapus:GetValue("Backtracking", "Character Color"),
+                            Material = Enum.Material[helper:GetValue("Backtracking", "Character Material")],
+                            Transparency = helper:GetValue("Backtracking", "Character Transparency") * 0.01,
+                            Color = helper:GetValue("Backtracking", "Character Color"),
                             CanCollide = true
                         }
 
                         local _, uncache = cham.new(clone, properties, false, true, false)
                         clone.Parent = backtrackObjects
 
-                        task.delay(wapus:GetValue("Backtracking", "Character Duration"), function()
+                        task.delay(helper:GetValue("Backtracking", "Character Duration"), function()
                             local transparency = (1 - properties.Transparency) / 5
 
                             for transparencyIndex = 1, 5 do
@@ -5891,8 +5891,8 @@ LPH_JIT_MAX(function() -- Main Cheat
         local clockTime = os.clock()
 
         aimbotting = false
-        if wapus:GetValue("Aim Bot", "Enabled") and aiming then
-            local target, entry, part = getClosest(aimbotfov.Position, wapus:GetValue("Aim Bot", "Use FOV") and aimbotfov.Radius, wapus:GetValue("Aim Bot", "Use Dead FOV") and aimbotdeadfov.Radius, wapus:GetValue("Aim Bot", "Visible Check"), wapus:GetValue("Aim Bot", "Target Part"))
+        if helper:GetValue("Aim Bot", "Enabled") and aiming then
+            local target, entry, part = getClosest(aimbotfov.Position, helper:GetValue("Aim Bot", "Use FOV") and aimbotfov.Radius, helper:GetValue("Aim Bot", "Use Dead FOV") and aimbotdeadfov.Radius, helper:GetValue("Aim Bot", "Visible Check"), helper:GetValue("Aim Bot", "Target Part"))
 
             if target and movementCache.position[entry._player][15] then
                 aimbotting = true
@@ -5906,7 +5906,7 @@ LPH_JIT_MAX(function() -- Main Cheat
                 local x = vx > cameraObj._maxAngle and cameraObj._maxAngle or vx < cameraObj._minAngle and cameraObj._minAngle or vx
                 local y = (vy + pi - cy) % tau - pi + cy
                 local newangles = Vector3.new(x, y, 0)
-                local smoothing = wapus:GetValue("Aim Bot", "Smoothness")
+                local smoothing = helper:GetValue("Aim Bot", "Smoothness")
 
                 if smoothing ~= 0 then
                     newangles = cameraObj._angles:lerp(newangles, math.clamp(1 - smoothing + (clockTime - aimTime)^2, 0, 1))
@@ -5919,7 +5919,7 @@ LPH_JIT_MAX(function() -- Main Cheat
         aimTime = aimbotting and aimTime
 
         local circlePos
-        if wapus:GetValue("FOV Settings", "FOV Follows Recoil") then
+        if helper:GetValue("FOV Settings", "FOV Follows Recoil") then
             local barrel = getBarrelLocation()
 
             if barrel and barrel.Z > 0 then
@@ -5933,27 +5933,27 @@ LPH_JIT_MAX(function() -- Main Cheat
         silentaimfov.Position = circlePos
         silentaimdeadfov.Position = circlePos
 
-        if wapus:GetValue("FOV Settings", "Dynamic FOV") then
+        if helper:GetValue("FOV Settings", "Dynamic FOV") then
             local factor = not charInterface.isAlive() and 1 or (cameraInterface.getActiveCamera():getBaseFov() / camera.FieldOfView)
-            aimbotfov.Radius = wapus:GetValue("Aim Bot", "FOV Radius") * factor
-            aimbotdeadfov.Radius = wapus:GetValue("Aim Bot", "Dead FOV Radius") * factor
-            silentaimfov.Radius = wapus:GetValue("Silent Aim", "FOV Radius") * factor
-            silentaimdeadfov.Radius = wapus:GetValue("Silent Aim", "Dead FOV Radius") * factor
+            aimbotfov.Radius = helper:GetValue("Aim Bot", "FOV Radius") * factor
+            aimbotdeadfov.Radius = helper:GetValue("Aim Bot", "Dead FOV Radius") * factor
+            silentaimfov.Radius = helper:GetValue("Silent Aim", "FOV Radius") * factor
+            silentaimdeadfov.Radius = helper:GetValue("Silent Aim", "Dead FOV Radius") * factor
         end
 
-        if wapus:GetValue("World Visuals", "Ambient") then
-            local color = wapus:GetValue("World Visuals", "Ambient Color")
+        if helper:GetValue("World Visuals", "Ambient") then
+            local color = helper:GetValue("World Visuals", "Ambient Color")
             lighting.Ambient = color
             lighting.OutdoorAmbient = color
         end
 
-        if wapus:GetValue("Crosshair", "Enabled") then
-            if (wapus:GetValue("Crosshair", "Spin Speed") > 0) or wapus:GetValue("Crosshair", "Follow Recoil") then
+        if helper:GetValue("Crosshair", "Enabled") then
+            if (helper:GetValue("Crosshair", "Spin Speed") > 0) or helper:GetValue("Crosshair", "Follow Recoil") then
                 updateCrosshairPos()
             end
 
-            if wapus:GetValue("Crosshair", "Rainbow Crosshair") then
-                local rainbow = Color3.fromHSV((clockTime * wapus:GetValue("Crosshair", "Rainbow Speed")) % 1, 1, 1)
+            if helper:GetValue("Crosshair", "Rainbow Crosshair") then
+                local rainbow = Color3.fromHSV((clockTime * helper:GetValue("Crosshair", "Rainbow Speed")) % 1, 1, 1)
                 crossdot.Color = rainbow
                 cross1.Color = rainbow
                 cross2.Color = rainbow
@@ -6103,8 +6103,8 @@ LPH_NO_VIRTUALIZE(function() -- Make UI
     local title
     if isfile(folderName .. "/theme.json") then
         local userThemeData = httpService:JSONDecode(readfile(folderName .. "/theme.json"))
-        title = (userThemeData.Title == "Wapus" and "Wapus.Shop") or userThemeData.Title
-        wapus.theme = {
+        title = (userThemeData.Title == "Helper" and "Helper.Shop") or userThemeData.Title
+        helper.theme = {
             accent = Color3.fromRGB(table.unpack(userThemeData["Accent Color"])),
             text = Color3.fromRGB(table.unpack(userThemeData["Text Color"])),
             background = Color3.fromRGB(table.unpack(userThemeData["Background Color"])),
@@ -6128,9 +6128,9 @@ LPH_NO_VIRTUALIZE(function() -- Make UI
         writefile(folderName .. "/theme.json", httpService:JSONEncode(themeData))
     end
 
-    local menu = wapus:CreateMenu(title or defaultUIName, (not cacheExists) or devMode or uiCache.open, cacheExists and uiCache.index or 1)
-    wapus.GetValue = menu.GetValue
-    wapus.sectionIndexes = menu.sectionIndexes
+    local menu = helper:CreateMenu(title or defaultUIName, (not cacheExists) or devMode or uiCache.open, cacheExists and uiCache.index or 1)
+    helper.GetValue = menu.GetValue
+    helper.sectionIndexes = menu.sectionIndexes
 
     local function getConfigNames()
         local names = {}
@@ -6580,8 +6580,8 @@ end)()
 
 -- $$ banknote $$ integration export: expose the menu object so the
 -- banknote logic file (games/logic/254965063.lua) can drive every feature
--- via wapus.menus[1] / wapus.sectionIndexes without editing this codebase.
+-- via helper.menus[1] / helper.sectionIndexes without editing this codebase.
 if getgenv then
-    getgenv().wapus = wapus
+    getgenv().helper = helper
 end
-return wapus
+return helper

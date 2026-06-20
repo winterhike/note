@@ -2,7 +2,7 @@
 -- $$ banknote $$  -  Phantom Forces (main PlaceId 292439477)
 --
 -- The classic Phantom Forces place (292439477 / universe 113491250) shares
--- the exact same wapus integration as the Console place (254965063). Rather
+-- the exact same helper integration as the Console place (254965063). Rather
 -- than duplicate the whole integration, this file redirects to the canonical
 -- logic file.
 --
