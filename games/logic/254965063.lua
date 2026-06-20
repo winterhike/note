@@ -10,7 +10,11 @@
 -- wapus element via element:SetValue(v), which fires wapus' real feature
 -- callback. Nothing about wapus' feature logic is reimplemented.
 --======================================================================
-if getgenv()._WapusBanknoteLoaded then return end
+-- allow re-execution within the same session (re-running the loader): tear
+-- down a previous integration's menu guard so we don't stack heartbeats.
+if getgenv()._WapusMenuGuard then
+    pcall(function() getgenv()._WapusMenuGuard:Disconnect() end)
+end
 getgenv()._WapusBanknoteLoaded = true
 
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
@@ -24,19 +28,33 @@ local function notify(msg)
     pcall(function() BN:Notification(tostring(msg), 4) end)
 end
 
+local function log(...) print("[banknote/PF]", ...) end
+
 --======================================================================
 -- 1. Run the wapus codebase intact
 --======================================================================
 do
-    local okRun = pcall(function()
-        local src = game:HttpGet(BASE_URL .. "wapus.lua?_=" .. tostring(tick()))
-        local fn = loadstring(src)
-        assert(fn, "failed to compile wapus.lua")
-        fn()
+    log("fetching wapus.lua ...")
+    local src
+    local okFetch, fetchErr = pcall(function()
+        src = game:HttpGet(BASE_URL .. "wapus.lua?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6)))
     end)
-    if not okRun then
-        -- already-running guards inside wapus can throw on re-exec; keep going,
-        -- the global may still have been set by a prior run.
+    if not okFetch or type(src) ~= "string" or #src < 1000 then
+        warn("[banknote/PF] wapus.lua fetch failed:", fetchErr, "len:", src and #src)
+    else
+        log("wapus.lua fetched, bytes:", #src, "- compiling ...")
+        local fn, compileErr = loadstring(src)
+        if not fn then
+            warn("[banknote/PF] wapus.lua COMPILE error:", compileErr)
+        else
+            log("wapus.lua compiled - executing ...")
+            local okRun, runErr = pcall(fn)
+            if not okRun then
+                warn("[banknote/PF] wapus.lua RUNTIME error:", runErr)
+            else
+                log("wapus.lua executed ok")
+            end
+        end
     end
 end
 
@@ -47,7 +65,7 @@ local wapus
 do
     local deadline = tick() + 15
     repeat
-        wapus = (getgenv and getgenv().wapus) or rawget(getfenv(), "wapus")
+        wapus = (getgenv and getgenv().wapus) or (rawget and rawget(getfenv(), "wapus"))
         if wapus and wapus.menus and wapus.menus[1] and wapus.menus[1].tabs and #wapus.menus[1].tabs > 0 then
             break
         end
@@ -55,12 +73,22 @@ do
     until tick() > deadline
 end
 
-if not (wapus and wapus.menus and wapus.menus[1]) then
-    notify("Phantom Forces: failed to hook wapus")
+if not wapus then
+    warn("[banknote/PF] getgenv().wapus is nil - wapus did not export its object")
+    notify("Phantom Forces: failed to hook wapus (no object)")
     return
+end
+if not (wapus.menus and wapus.menus[1]) then
+    warn("[banknote/PF] wapus.menus[1] missing - menu was not created")
+    notify("Phantom Forces: failed to hook wapus (no menu)")
+    return
+end
+if not (wapus.menus[1].tabs and #wapus.menus[1].tabs > 0) then
+    warn("[banknote/PF] wapus menu has no tabs")
 end
 
 local menu = wapus.menus[1]
+log("hooked wapus menu, tabs:", #(menu.tabs or {}))
 
 --======================================================================
 -- 3. Hide the wapus Drawing menu (keep feature visuals intact)
@@ -134,6 +162,7 @@ end
 -- 5. Build the banknote window from the live wapus menu
 --======================================================================
 local window = BN:Window({ Name = "$$ banknote: Phantom Forces $$" })
+log("banknote window created:", window ~= nil)
 pcall(function() window:Watermark({ Name = "$$ banknote $$" }) end)
 pcall(function() window:KeybindList() end)
 
@@ -233,6 +262,7 @@ local function buildSection(page, sec, side)
     end
 end
 
+local pageCount, sectionCount = 0, 0
 for _, tab in ipairs(menu.tabs) do
     local tabName = "Tab"
     pcall(function() tabName = tab.title and tab.title.Text or tabName end)
@@ -241,22 +271,31 @@ for _, tab in ipairs(menu.tabs) do
     if tostring(tabName):lower() ~= "settings" then
         local page
         local okPage = pcall(function() page = window:Page({ Name = tabName }) end)
-        if okPage and page and tab.mainSections then
-            for _, mainSection in ipairs(tab.mainSections) do
-                if mainSection.type ~= "playerlist" then
-                    local side = sideOf(mainSection)
-                    -- mainSection.sections = { mainSection, subsection1, ... }
-                    local subs = mainSection.sections or { mainSection }
-                    for _, sub in ipairs(subs) do
-                        buildSection(page, sub, side)
+        if okPage and page then
+            pageCount = pageCount + 1
+            if tab.mainSections then
+                for _, mainSection in ipairs(tab.mainSections) do
+                    if mainSection.type ~= "playerlist" then
+                        local side = sideOf(mainSection)
+                        -- mainSection.sections = { mainSection, subsection1, ... }
+                        local subs = mainSection.sections or { mainSection }
+                        for _, sub in ipairs(subs) do
+                            buildSection(page, sub, side)
+                            sectionCount = sectionCount + 1
+                        end
                     end
                 end
             end
+        else
+            warn("[banknote/PF] failed to create page:", tabName)
         end
     end
 end
+log("built pages:", pageCount, "sections:", sectionCount)
 
-pcall(function() window:Init() end)
+local okInit, initErr = pcall(function() window:Init() end)
+if not okInit then warn("[banknote/PF] window:Init() error:", initErr) end
+log("window:Init() done:", okInit)
 
 --======================================================================
 -- 6. Clean unload: fire wapus' own Unload button when banknote exits

@@ -1134,6 +1134,11 @@ do -- UI Library
         GetValue = function() end
     }
 
+    -- $$ banknote $$ early export: expose the wapus object the moment it exists
+    -- so the banknote integration can still reach wapus.menus[1] even if a
+    -- later part of wapus' init throws after the menu has been built.
+    if getgenv then getgenv().wapus = wapus end
+
     local hueData = "rbxassetid://18403604225"
     local valueData = "rbxassetid://18403602548"
     local blankData = "rbxassetid://18403600629"
