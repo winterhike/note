@@ -6,8 +6,9 @@
 
 local UI = {}
 
-function UI:Build(Config, Library)
-    local Window = Library:Window({Name = "$$ banknote $$"})
+function UI:Build(Config, Library, placeName)
+    local windowTitle = "$$ banknote: " .. (placeName or "Unknown") .. " $$"
+    local Window = Library:Window({Name = windowTitle})
     local Watermark = Window:Watermark({Name = "$$ banknote $$"})
     local KeybindList = Window:KeybindList()
 

@@ -59,9 +59,19 @@ else
     end
 end
 
+-- Get the place name from MarketplaceService
+local placeName = "Unknown"
+local mps = game:GetService("MarketplaceService")
+local nameSuccess, nameResult = pcall(function()
+    return mps:GetProductInfo(game.PlaceId).Name
+end)
+if nameSuccess and nameResult then
+    placeName = nameResult
+end
+
 -- Build the UI with the loaded config
 if GameConfig then
-    UI:Build(GameConfig, Library)
+    UI:Build(GameConfig, Library, placeName)
 else
     warn("[$$ banknote $$] Failed to load any game config.")
 end
