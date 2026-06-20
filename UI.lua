@@ -12,6 +12,16 @@ function UI:Build(Config, Library, placeName)
     local Watermark = Window:Watermark({Name = "$$ banknote $$"})
     local KeybindList = Window:KeybindList()
 
+    -- Global flags table for logic scripts to read
+    getgenv().BanknoteFlags = getgenv().BanknoteFlags or {}
+
+    -- Helper to set default flag values
+    local function setDefaultFlag(flag, value)
+        if flag and value ~= nil then
+            getgenv().BanknoteFlags[flag] = value
+        end
+    end
+
     -- Iterate through each page defined in the config
     for _, pageData in ipairs(Config.Pages) do
         local Page = Window:Page({Name = pageData.Name})
@@ -25,11 +35,14 @@ function UI:Build(Config, Library, placeName)
                 local elemType = element.Type
 
                 if elemType == "Toggle" then
+                    setDefaultFlag(element.Flag, element.Default or false)
                     Section:Toggle({
                         Name = element.Name,
                         Flag = element.Flag,
                         Default = element.Default or false,
-                        Callback = element.Callback or function(v) end
+                        Callback = element.Callback or function(v)
+                            getgenv().BanknoteFlags[element.Flag] = v
+                        end
                     })
 
                 elseif elemType == "Button" then
@@ -39,6 +52,7 @@ function UI:Build(Config, Library, placeName)
                     })
 
                 elseif elemType == "Slider" then
+                    setDefaultFlag(element.Flag, element.Default or 0)
                     Section:Slider({
                         Name = element.Name,
                         Flag = element.Flag,
@@ -47,17 +61,22 @@ function UI:Build(Config, Library, placeName)
                         Default = element.Default or 0,
                         Decimals = element.Decimals or 1,
                         Suffix = element.Suffix or "",
-                        Callback = element.Callback or function(value) end
+                        Callback = element.Callback or function(value)
+                            getgenv().BanknoteFlags[element.Flag] = value
+                        end
                     })
 
                 elseif elemType == "Dropdown" then
+                    setDefaultFlag(element.Flag, element.Default or "")
                     Section:Dropdown({
                         Name = element.Name,
                         Flag = element.Flag,
                         Items = element.Items or {},
                         Default = element.Default or "",
                         Multi = element.Multi or false,
-                        Callback = element.Callback or function(value) end
+                        Callback = element.Callback or function(value)
+                            getgenv().BanknoteFlags[element.Flag] = value
+                        end
                     })
 
                 elseif elemType == "Textbox" then
@@ -68,7 +87,9 @@ function UI:Build(Config, Library, placeName)
                         Placeholder = element.Placeholder or "",
                         Numeric = element.Numeric or false,
                         Finished = element.Finished or false,
-                        Callback = element.Callback or function(value) end
+                        Callback = element.Callback or function(value)
+                            getgenv().BanknoteFlags[element.Flag] = value
+                        end
                     })
 
                 elseif elemType == "Label" then
@@ -80,7 +101,9 @@ function UI:Build(Config, Library, placeName)
                             Name = element.Colorpicker.Name,
                             Flag = element.Colorpicker.Flag,
                             Default = element.Colorpicker.Default or Color3.fromRGB(255, 255, 255),
-                            Callback = element.Colorpicker.Callback or function(value, alpha) end
+                            Callback = element.Colorpicker.Callback or function(value, alpha)
+                                getgenv().BanknoteFlags[element.Colorpicker.Flag] = value
+                            end
                         })
                     end
 
@@ -90,7 +113,9 @@ function UI:Build(Config, Library, placeName)
                             Flag = element.Keybind.Flag,
                             Default = element.Keybind.Default or Enum.KeyCode.E,
                             Mode = element.Keybind.Mode or "Toggle",
-                            Callback = element.Keybind.Callback or function(value) end
+                            Callback = element.Keybind.Callback or function(value)
+                                getgenv().BanknoteFlags[element.Keybind.Flag] = value
+                            end
                         })
                     end
                 end
