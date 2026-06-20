@@ -2768,20 +2768,46 @@ LPH_JIT_MAX(function() -- Main Cheat
         -- $$ banknote $$ fix: PF's client modules may not be in the GC yet when
         -- the loader runs early; retry the scan instead of one-shot (original
         -- code errored on `for name,data in moduleCache` when this was nil).
-        local deadline = tick() + 60
+        local deadline = tick() + 30
+        local scans = 0
         repeat
-            for i, v in getgc(true) do
-                if type(v) == "table" and rawget(v, "ScreenCull") and rawget(v, "NetworkClient") then
-                    moduleCache = v
-                    break
+            scans = scans + 1
+            local okScan = pcall(function()
+                for i, v in getgc(true) do
+                    if type(v) == "table" and rawget(v, "ScreenCull") and rawget(v, "NetworkClient") then
+                        moduleCache = v
+                        break
+                    end
                 end
+            end)
+            if not okScan then
+                warn("[banknote/PF] wapus: getgc(true) scan threw (executor may not support getgc)")
             end
-            if not moduleCache then task.wait(0.25) end
+            if not moduleCache then
+                if scans % 8 == 0 then
+                    warn("[banknote/PF] wapus: still searching for PF modules... (in a live match?) scans=" .. scans)
+                end
+                task.wait(0.25)
+            end
         until moduleCache or tick() > deadline
         if not moduleCache then
-            warn("[banknote/PF] wapus: PF module cache not found after 60s (deploy into a match, then re-run)")
+            -- diagnostic: count tables that have EITHER key, to tell whether the
+            -- registry exists but with a different shape vs not existing at all.
+            local hasNet, hasCull, tables = 0, 0, 0
+            pcall(function()
+                for _, v in getgc(true) do
+                    if type(v) == "table" then
+                        tables = tables + 1
+                        if rawget(v, "NetworkClient") then hasNet = hasNet + 1 end
+                        if rawget(v, "ScreenCull") then hasCull = hasCull + 1 end
+                    end
+                end
+            end)
+            warn(("[banknote/PF] wapus: PF module cache not found. gc tables=%d, w/NetworkClient=%d, w/ScreenCull=%d. Deploy into a match, then re-run.")
+                :format(tables, hasNet, hasCull))
             return
         end
+        warn("[banknote/PF] wapus: found PF module cache after " .. scans .. " scan(s)")
     end
 
     local modules = {}
