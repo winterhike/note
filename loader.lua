@@ -5,7 +5,7 @@
     Caches files locally in the workspace folder "banknote".
 ]]
 
-local VERSION = "1.2.0"
+local VERSION = "1.2.1"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 
@@ -58,10 +58,10 @@ local function freshGet(url)
     return ok, content
 end
 
--- Load the UI library + builder (cached)
+-- Load the UI library (cached - large, rarely changes) + builder (fresh)
 local Library = loadstring(cachedGet(BASE_URL .. "library/Library.lua", "Library.lua"))()
 getgenv().BanknoteLibrary = Library
-local UI = loadstring(cachedGet(BASE_URL .. "UI.lua", "UI.lua"))()
+local UI = loadstring(select(2, freshGet(BASE_URL .. "UI.lua")))()
 
 -- Resolve which id to use: prefer an exact PlaceId config, else the universe map
 local PlaceId = tostring(game.PlaceId)
@@ -92,7 +92,8 @@ end
 local GameConfig = nil
 local isUniversal = false
 local success, result = pcall(function()
-    return loadstring(cachedGet(BASE_URL .. "games/" .. effectiveId .. ".lua", "games/" .. effectiveId .. ".lua"))()
+    local _, src = freshGet(BASE_URL .. "games/" .. effectiveId .. ".lua")
+    return loadstring(src)()
 end)
 
 if success and result then
@@ -102,7 +103,8 @@ else
     isUniversal = true
     print("[$$ banknote $$] No config for " .. effectiveId .. " - loading universal")
     local fbOk, fbResult = pcall(function()
-        return loadstring(cachedGet(BASE_URL .. "games/universal.lua", "games/universal.lua"))()
+        local _, src = freshGet(BASE_URL .. "games/universal.lua")
+        return loadstring(src)()
     end)
     if fbOk and fbResult then GameConfig = fbResult end
 end
