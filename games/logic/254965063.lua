@@ -85,11 +85,11 @@ local function wapusURL()
         local sha = body:match('"sha"%s*:%s*"(%x+)"')
         if sha then
             log("pinned to commit", sha:sub(1, 7))
-            return "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/" .. sha .. "/wapus.lua"
+            return "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/" .. sha .. "/pfH/helper.lua"
         end
     end
     log("commit SHA unavailable, falling back to master (may be cached)")
-    return BASE_URL .. "wapus.lua?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6))
+    return BASE_URL .. "pfH/helper.lua?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6))
 end
 
 --======================================================================
