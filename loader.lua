@@ -5,7 +5,7 @@
     Caches files locally in the workspace folder "banknote".
 ]]
 
-local VERSION = "1.2.3"
+local VERSION = "1.2.4"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 
@@ -20,6 +20,22 @@ local UNIVERSE_MAP = {
 -- Cache-buster so GitHub's raw CDN always serves the freshest files
 local function bust()
     return "?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6))
+end
+
+-- GitHub's raw CDN caches the master branch (~5 min) and ignores query-string
+-- cache-busters, which caused stale configs/logic. Pin BASE_URL to the latest
+-- commit SHA: commit-pinned raw URLs are immutable and always fresh.
+do
+    local ok, body = pcall(function()
+        return game:HttpGet("https://api.github.com/repos/endmylifehahahahahahahahaha/banknote-hub/commits/master")
+    end)
+    if ok and type(body) == "string" then
+        local sha = body:match('"sha"%s*:%s*"(%x+)"')
+        if sha then
+            BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/" .. sha .. "/"
+            print("[$$ banknote $$] pinned to commit " .. sha:sub(1, 7))
+        end
+    end
 end
 
 -- Ensure cache folders exist
