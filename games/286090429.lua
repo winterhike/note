@@ -23,12 +23,12 @@ return {
                     Name = "Gun Mods",
                     Side = 2,
                     Elements = {
-                        {Type = "Toggle", Name = "Infinite Ammo", Flag = "InfiniteAmmo", Default = false},
-                        {Type = "Toggle", Name = "Fast Fire", Flag = "FastFire", Default = false},
-                        {Type = "Slider", Name = "Fire Rate", Flag = "FireRate", Min = 0.01, Max = 0.5, Default = 0.05, Decimals = 0.01, Suffix = "s"},
-                        {Type = "Toggle", Name = "No Recoil", Flag = "NoRecoil", Default = false},
-                        {Type = "Toggle", Name = "Full Auto", Flag = "FullAuto", Default = false},
-                        {Type = "Toggle", Name = "No Spread", Flag = "NoSpread", Default = false},
+                        {Type = "Toggle", Name = "Infinite Ammo", Flag = "InfiniteAmmo", Default = false, Detection = "detected"},
+                        {Type = "Toggle", Name = "Fast Fire", Flag = "FastFire", Default = false, Detection = "detected"},
+                        {Type = "Slider", Name = "Fire Rate", Flag = "FireRate", Min = 0.01, Max = 0.5, Default = 0.05, Decimals = 0.01, Suffix = "s", Detection = "detected"},
+                        {Type = "Toggle", Name = "No Recoil", Flag = "NoRecoil", Default = false, Detection = "detected"},
+                        {Type = "Toggle", Name = "Full Auto", Flag = "FullAuto", Default = false, Detection = "detected"},
+                        {Type = "Toggle", Name = "No Spread", Flag = "NoSpread", Default = false, Detection = "detected"},
                     }
                 }
             }
