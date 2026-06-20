@@ -267,12 +267,7 @@ do
             pcall(function() sec.flags[name]:SetValue(val) end)
         end
     end
-    -- clean, low-risk legit baseline: enemy ESP only
-    setF("Enemy ESP", "Enabled", true)
-    setF("Enemy ESP", "Boxes", true)
-    setF("Enemy ESP", "Names", true)
-    setF("Enemy ESP", "Health Bar", true)
-    setF("Enemy ESP", "Distances", true)
+    -- start completely empty: nothing enabled by default.
 
     log("clean config applied (" .. resetCount .. " toggles cleared)")
 end
@@ -464,4 +459,4 @@ do
     BN.OnUnload = fireWapusUnload
 end
 
-notify("Phantom Forces (wapus) loaded into banknote")
+notify("Phantom Forces loaded into banknote")
