@@ -2768,7 +2768,7 @@ LPH_JIT_MAX(function() -- Main Cheat
         -- $$ banknote $$ fix: PF's client modules may not be in the GC yet when
         -- the loader runs early; retry the scan instead of one-shot (original
         -- code errored on `for name,data in moduleCache` when this was nil).
-        local deadline = tick() + 30
+        local deadline = tick() + 12
         local scans = 0
         repeat
             scans = scans + 1
@@ -2790,31 +2790,6 @@ LPH_JIT_MAX(function() -- Main Cheat
                 task.wait(0.25)
             end
         until moduleCache or tick() > deadline
-        if not moduleCache then
-            -- $$ banknote $$ fallback: some executors' getgc(true) does not
-            -- expose PF's module registry. Rebuild it from loaded ModuleScripts
-            -- (require returns Roblox's cached singleton, i.e. the live module).
-            local glm = getloadedmodules or (debug and debug.getloadedmodules)
-            if glm then
-                local okFb = pcall(function()
-                    local reg = {}
-                    for _, m in ipairs(glm()) do
-                        if typeof(m) == "Instance" and m:IsA("ModuleScript") then
-                            local okReq, ret = pcall(require, m)
-                            if okReq and ret ~= nil then
-                                reg[m.Name] = ret
-                            end
-                        end
-                    end
-                    if rawget(reg, "NetworkClient") and rawget(reg, "ScreenCull") then
-                        moduleCache = reg
-                    end
-                end)
-                if okFb and moduleCache then
-                    warn("[banknote/PF] wapus: built module cache from loaded modules (getgc fallback)")
-                end
-            end
-        end
         if not moduleCache then
             -- diagnostic: count tables that have EITHER key, to tell whether the
             -- registry exists but with a different shape vs not existing at all.

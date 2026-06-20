@@ -30,6 +30,50 @@ end
 
 local function log(...) print("[banknote/PF]", ...) end
 
+--======================================================================
+-- 0. Ensure PF's parallel-Luau modules are reachable on the MAIN thread.
+--
+-- Phantom Forces runs its client code in parallel-Luau Actors. On a normal
+-- join the cheat engine can't see PF's modules from the main thread (getgc
+-- returns nothing useful), which is exactly what we hit. The official wapus
+-- loader fixes this by enabling the DebugRunParallelLuaOnMainThread fast flag
+-- and rejoining; after that, PF's parallel Lua runs on the main thread and
+-- everything (wapus + the banknote UI) lives in one VM.
+--======================================================================
+do
+    local function parallelOnMain()
+        if not getfflag then return nil end
+        local ok, val = pcall(getfflag, "DebugRunParallelLuaOnMainThread")
+        if not ok then return nil end
+        return tostring(val):lower() == "true"
+    end
+
+    local pom = parallelOnMain()
+    if pom == false then
+        if getgenv()._WapusFflagTried then
+            warn("[banknote/PF] parallel-Lua-on-main still off after rejoin; proceeding best-effort")
+        elseif setfflag then
+            getgenv()._WapusFflagTried = true
+            log("enabling DebugRunParallelLuaOnMainThread + rejoining ...")
+            notify("Phantom Forces: enabling cheat engine, rejoining...")
+            pcall(function() setfflag("DebugRunParallelLuaOnMainThread", "True") end)
+            if queue_on_teleport then
+                pcall(function()
+                    queue_on_teleport('loadstring(game:HttpGet("' .. BASE_URL .. 'loader.lua"))()')
+                end)
+            end
+            task.wait(0.5)
+            pcall(function()
+                game:GetService("TeleportService"):Teleport(game.PlaceId)
+            end)
+            return
+        else
+            warn("[banknote/PF] parallel Lua is off-main-thread and setfflag is unavailable on this executor")
+            notify("PF: executor can't enable main-thread parallel Lua")
+        end
+    end
+end
+
 -- Resolve an always-fresh URL for wapus.lua. raw.githubusercontent.com caches
 -- the master branch for ~5 min and ignores ?_= cache-busters, so we pin to the
 -- latest commit SHA (commit-pinned raw URLs are immutable and never stale).
