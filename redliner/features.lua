@@ -537,6 +537,30 @@ run(function()
 		end
 	end
 
+	-- $$ banknote $$: on executors whose require cache isn't shared with the
+	-- game, the functions discovery pulled via require(inst)[name] are FRESH
+	-- copies with fresh upvalues -- not the closures the game actually runs.
+	-- Re-point them at the real counterparts (same source script / name /
+	-- defined line, different object) found on the heap, so calls that rely on
+	-- the function's own upvalues (silent aim's shoot, server replication)
+	-- operate on the game's live state. No-op if already correct.
+	if type(getgc) == 'function' then
+		local function realFn(fresh)
+			if type(fresh) ~= 'function' then return fresh end
+			local src, nm, ln = debug.info(fresh, 's'), debug.info(fresh, 'n'), debug.info(fresh, 'l')
+			for _, f in getgc(true) do
+				if type(f) == 'function' and f ~= fresh and not (iscclosure and iscclosure(f)) then
+					if debug.info(f, 's') == src and debug.info(f, 'n') == nm and debug.info(f, 'l') == ln then
+						return f
+					end
+				end
+			end
+			return fresh
+		end
+		redline.ShootFunction = realFn(redline.ShootFunction)
+		redline.ReplicateFunction = realFn(redline.ReplicateFunction)
+	end
+
 	-- $$ banknote $$ diagnostics: report which REDLINER internals resolved
 	if getgenv then getgenv().__redline = redline end
 	print('[banknote/REDLINER] discovery:',
@@ -608,6 +632,40 @@ local HitboxHook = {Hooks = {}}
 do
 	local oldscan
 
+	-- $$ banknote $$ ------------------------------------------------------
+	-- redline.AttackBox is require(Attack); on executors whose require cache
+	-- isn't shared with the game that's a FRESH copy, so its castOnce is a
+	-- dead closure the game never calls -> hooking it does nothing and the
+	-- whole melee-hitbox layer (killaura hit injection, antiparry, reach...)
+	-- silently no-ops while still swinging/showing particles.
+	--
+	-- Resolve the REAL castOnce the game actually calls: same source script,
+	-- same name, same defined line as our copy, but a different function
+	-- object. Found via getgc and cached.
+	-----------------------------------------------------------------------
+	local realCastOnce
+	local function resolveCastOnce()
+		local fresh = redline.AttackBox.castOnce
+		if realCastOnce then return realCastOnce end
+		realCastOnce = fresh
+		if type(getgc) ~= 'function' or type(fresh) ~= 'function' then
+			return realCastOnce
+		end
+		local src = debug.info(fresh, 's')
+		local nm = debug.info(fresh, 'n')
+		local ln = debug.info(fresh, 'l')
+		for _, f in getgc(true) do
+			if type(f) == 'function' and f ~= fresh then
+				local okc = not (iscclosure and iscclosure(f))
+				if okc and debug.info(f, 's') == src and debug.info(f, 'n') == nm and debug.info(f, 'l') == ln then
+					realCastOnce = f
+					return realCastOnce
+				end
+			end
+		end
+		return realCastOnce
+	end
+
 	local function Hook(...)
 		local results = table.pack(oldscan(...))
 		for _, v in HitboxHook.Hooks do
@@ -629,7 +687,7 @@ do
 		end)
 
 		if not oldscan then
-			oldscan = hookfunction(redline.AttackBox.castOnce, function(...)
+			oldscan = hookfunction(resolveCastOnce(), function(...)
 				return Hook(...)
 			end)
 		end
@@ -644,10 +702,11 @@ do
 		end
 
 		if oldscan and not next(self.Hooks) then
+			local target = resolveCastOnce()
 			if restorefunction then
-				restorefunction(redline.AttackBox.castOnce)
+				restorefunction(target)
 			else
-				hookfunction(redline.AttackBox.castOnce, oldscan)
+				hookfunction(target, oldscan)
 			end
 
 			oldscan = nil
