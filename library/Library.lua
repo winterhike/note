@@ -42,7 +42,8 @@ local Library = {
     Folders = {
         Assets = "/Assets",
         Configs = "/Configs",
-        Themes = "/Themes"
+        Themes = "/Themes",
+        Luas = "/Luas"
     },
 
     FontSize = 12,
@@ -4993,6 +4994,64 @@ local Library = {
 
                 if AutoloadContent ~= "" then 
                     Library:LoadConfig(AutoloadContent)
+                end
+            end
+
+            --==========================================================
+            -- "lua" page: loads user-made .lua files that build their own
+            -- banknote-UI features. Folder: Library.Directory .. "/Luas".
+            -- Each lua should `return function(Library, Page) ... end` and
+            -- build a Section on the given Page using the UI library API.
+            --==========================================================
+            local LuaPage = Self:Page({Name = "lua"})
+            do
+                local LuasFolder = Library.Directory .. Library.Folders.Luas
+                if not isfolder(LuasFolder) then makefolder(LuasFolder) end
+
+                local InfoSection = LuaPage:Section({Name = "Custom Luas", Side = 1})
+
+                local Warn = InfoSection:Label({Name = "we are not at fault if the certain lua is detected, use with caution!"})
+                pcall(function()
+                    local txt = Warn.Items["Text"].Instance
+                    txt.TextColor3 = Color3.fromRGB(255, 45, 45)
+                    txt.TextWrapped = true
+                    txt.AutomaticSize = Enum.AutomaticSize.Y
+                    txt.Size = UDim2.new(1, -10, 0, 0)
+                    local frame = Warn.Items["Label"].Instance
+                    frame.AutomaticSize = Enum.AutomaticSize.Y
+                    frame.Size = UDim2.new(1, 0, 0, 0)
+                end)
+
+                local function loadLua(path)
+                    local ok, src = pcall(readfile, path)
+                    if not ok or type(src) ~= "string" or src == "" then return end
+                    local chunk, err = loadstring(src)
+                    if not chunk then
+                        Library:Notification("Lua compile error (" .. path .. "): " .. tostring(err), 6, Color3.fromRGB(255, 0, 0))
+                        return
+                    end
+                    local ranOk, ret = pcall(chunk)
+                    if not ranOk then
+                        Library:Notification("Lua error (" .. path .. "): " .. tostring(ret), 6, Color3.fromRGB(255, 0, 0))
+                        return
+                    end
+                    -- preferred contract: the lua returns function(Library, Page)
+                    if type(ret) == "function" then
+                        pcall(ret, Library, LuaPage)
+                    end
+                end
+
+                local files = (isfolder(LuasFolder) and listfiles(LuasFolder)) or {}
+                local loaded = 0
+                for _, path in ipairs(files) do
+                    if type(path) == "string" and path:sub(-4):lower() == ".lua" then
+                        loadLua(path)
+                        loaded = loaded + 1
+                    end
+                end
+                if loaded == 0 then
+                    InfoSection:Label({Name = "No luas found. Drop .lua files into:"})
+                    InfoSection:Label({Name = LuasFolder})
                 end
             end
         end
