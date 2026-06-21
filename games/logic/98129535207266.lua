@@ -10,14 +10,18 @@
 -- The client's own raycast picks the hit, so a wall makes the bullet report
 -- the WALL. We take over the report: aim the Fire Orgin at the target and
 -- override the Damage Instance to the target's body part -> hits THROUGH walls.
--- NOTE: the server enforces the gun's Range on the REAL target position (a hit
--- reported past Range is rejected; faking a closer hit position does NOT work),
--- so Ragebot/Kill All only land on enemies within range (350 on the rifle).
+-- Kill All fires self-contained Fire+Damage shots at every enemy in range.
 --
--- Weapon mods read the live GunLocal fire frame. Different guns are different
--- scripts with different upvalue/stack layouts, so we FIND the frame level
--- dynamically and SCAN its upvalues for the settings table (by its keys) and
--- the ammo counter (integer upvalue <= MaxAmmo) - never hardcoded indices.
+-- GunLocal internals (decompiled + verified live). The fire frame (u66) sits
+-- at a stack level that depends on the executor's hook depth, so we FIND it
+-- dynamically (scan for "GunLocal") instead of hardcoding. In that frame:
+--   upvalue 1  = current ammo (number)
+--   upvalue 12 = settings table (Period=60/RPM, Spread, MinSpread, MaxSpread,
+--                BulletSpeed, MaxAmmo, ...)
+--   stack 12   = bullet origin CFrame (read)
+--   stack 17   = CFrame handed to the bullet sim (write to redirect)
+-- (The old code hardcoded level 3 -> wrong frame -> weapon mods silently did
+-- nothing. The real level is 4 under this executor.)
 --
 -- Marker for the loader: BanknoteLibrary
 --======================================================================
@@ -35,8 +39,10 @@ local lplr   = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local info           = debug.info
-local getupvalue     = debug.getupvalue
-local setupvalue     = debug.setupvalue
+local getstack       = getstack
+local setstack       = setstack
+local getupvalue     = getupvalue or debug.getupvalue
+local setupvalue     = setupvalue or debug.setupvalue
 local hookfunction   = hookfunction or replaceclosure
 local hookmetamethod = hookmetamethod
 local getnamecall    = getnamecallmethod or get_namecall_method
@@ -54,36 +60,37 @@ local function log(...) print("[banknote/D.I.G]", ...) end
 --======================================================================
 local FEAT = {
     -- silent aim
-    SilentAim     = false,
-    HitPart       = "Head",
-    HitChance     = 100,
-    FOVEnabled    = false,
-    FOVRadius     = 150,
-    ShowFOVCircle = false,
-    FOVColor      = Color3.fromRGB(255, 255, 255),
-    TeamCheck     = true,
-    WallCheck     = false,
+    SilentAim   = false,
+    HitPart     = "Head",
+    HitChance   = 100,
+    FOVEnabled  = false,
+    FOVRadius   = 150,
+    TeamCheck   = true,
+    WallCheck   = false,
     -- ragebot
-    Ragebot       = false,
-    RageHitPart   = "Head",
-    RagebotDelay  = 0.06,
-    KillAll       = false,
-    KillAllDelay  = 0.25,
+    Ragebot     = false,
+    RageHitPart = "Head",
+    RagebotDelay= 0.06,
+    KillAll     = false,
+    KillAllDelay= 0.25,
     -- weapon mods
-    NoSpread      = false,
-    InfAmmo       = false,
-    RapidFire     = false,
-    RapidRPM      = 1200,
+    NoSpread    = false,
+    InfAmmo     = false,
+    RapidFire   = false,
+    RapidRPM    = 1200,
+    -- misc
+    Snapline    = false,
 }
 
 local target = nil  -- current target Character (Model) for silent/rage
 
+-- precomputed each Heartbeat so the __namecall hook never calls a method
 local cache = {
-    targetPart = nil,   -- Instance: current target's hit part
+    targetPart = nil,  -- Instance: current target's hit part
 }
 
 --======================================================================
--- helpers
+-- helpers (only called OUTSIDE the __namecall hook)
 --======================================================================
 local function isEnemy(plr)
     if plr == lplr then return false end
@@ -102,11 +109,13 @@ local function getHitPart(char, partName)
         or char:FindFirstChild("Torso")
 end
 
+-- line of sight from `fromPos` to a part (ignores us + the target's own model)
 local losParams = RaycastParams.new()
 losParams.FilterType = Enum.RaycastFilterType.Exclude
 local function losClear(fromPos, part)
     losParams.FilterDescendantsInstances = { lplr.Character, part.Parent }
-    return workspace:Raycast(fromPos, part.Position - fromPos, losParams) == nil
+    local res = workspace:Raycast(fromPos, part.Position - fromPos, losParams)
+    return res == nil
 end
 
 local function nearestToCrosshair()
@@ -162,48 +171,16 @@ local function equippedGun()
 end
 
 --======================================================================
--- FOV circle visual (MVSD-style: ScreenGui + Frame + UICorner + UIStroke)
+-- snapline (optional)
 --======================================================================
-do
-    local guiParent = (gethui and gethui()) or lplr:WaitForChild("PlayerGui")
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BanknoteDIGFOV"
-    screenGui.ResetOnSpawn = false
-    screenGui.IgnoreGuiInset = true
-    screenGui.DisplayOrder = 999999
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-    screenGui.Parent = guiParent
-
-    local circle = Instance.new("Frame")
-    circle.Size = UDim2.fromOffset(300, 300)
-    circle.AnchorPoint = Vector2.new(0.5, 0.5)
-    circle.BackgroundTransparency = 1
-    circle.BorderSizePixel = 0
-    circle.Visible = false
-    circle.Parent = screenGui
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(1, 0)
-    corner.Parent = circle
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 255, 255)
-    stroke.Thickness = 2
-    stroke.Parent = circle
-
-    RunService.RenderStepped:Connect(function()
-        if FEAT.ShowFOVCircle then
-            local r = FEAT.FOVRadius or 150
-            circle.Size = UDim2.fromOffset(r * 2, r * 2)
-            stroke.Color = FEAT.FOVColor or Color3.fromRGB(255, 255, 255)
-            local mp = UserInputService:GetMouseLocation()
-            circle.Position = UDim2.fromOffset(mp.X, mp.Y)
-            circle.Visible = true
-        else
-            circle.Visible = false
-        end
-    end)
-end
+local snapline
+pcall(function()
+    snapline = Drawing.new("Line")
+    snapline.Thickness = 1
+    snapline.Transparency = 0.5
+    snapline.Color = Color3.new(1, 0, 1)
+    snapline.Visible = false
+end)
 
 --======================================================================
 -- target + cache update loop
@@ -219,42 +196,28 @@ RunService.Heartbeat:Connect(function()
         target = nil
         cache.targetPart = nil
     end
+
+    if snapline then
+        if FEAT.Snapline and cache.targetPart then
+            local sp, on = camera:WorldToViewportPoint(cache.targetPart.Position)
+            if on then
+                snapline.From = UserInputService:GetMouseLocation()
+                snapline.To = v2(sp.X, sp.Y)
+                snapline.Visible = true
+            else
+                snapline.Visible = false
+            end
+        else
+            snapline.Visible = false
+        end
+    end
 end)
 
 --======================================================================
--- weapon-setting mods (RapidFire / NoSpread mutate the live settings table;
--- InfAmmo refills the ammo upvalue). This is the exact approach verified
--- working: the settings table is upvalue 12 of the fire frame, ammo upvalue 1.
--- We still locate the frame level dynamically, and validate upvalue 12 is the
--- settings table (falling back to a scan for guns with a different layout).
+-- weapon-setting mods (RapidFire / NoSpread) + InfAmmo
 --======================================================================
 local origCache = setmetatable({}, { __mode = "k" })
-
-local function looksLikeSettings(v)
-    return type(v) == "table" and rawget(v, "Period") ~= nil and rawget(v, "Spread") ~= nil
-        and rawget(v, "BulletSpeed") ~= nil and rawget(v, "MaxAmmo") ~= nil
-end
-
-local function applyGunMods(lvl)
-    -- settings table: upvalue 12 (verified), else scan
-    local gun
-    local ok12, up12 = pcall(getupvalue, lvl, 12)
-    if ok12 and looksLikeSettings(up12) then
-        gun = up12
-    else
-        for i = 1, 30 do
-            local ok, v = pcall(getupvalue, lvl, i)
-            if not ok then break end
-            if looksLikeSettings(v) then gun = v break end
-        end
-    end
-    if not gun then return end
-
-    if not getgenv()._DIGGunHooked then
-        getgenv()._DIGGunHooked = true
-        log("weapon mods locked onto gun settings (Period/Spread/Ammo)")
-    end
-
+local function applyGunMods(gun, lvl)
     local o = origCache[gun]
     if not o then
         o = { Period = gun.Period, Spread = gun.Spread, MinSpread = gun.MinSpread, MaxSpread = gun.MaxSpread }
@@ -273,26 +236,17 @@ local function applyGunMods(lvl)
         gun.Spread, gun.MinSpread, gun.MaxSpread = o.Spread, o.MinSpread, o.MaxSpread
     end
 
-    -- ammo: upvalue 1 (verified), else first integer upvalue <= MaxAmmo
-    if FEAT.InfAmmo and type(gun.MaxAmmo) == "number" then
-        local ok1, cur = pcall(getupvalue, lvl, 1)
-        if ok1 and type(cur) == "number" and cur <= gun.MaxAmmo then
+    if FEAT.InfAmmo then
+        local ok, cur = pcall(getupvalue, lvl, 1)
+        if ok and type(cur) == "number" and type(gun.MaxAmmo) == "number" then
             pcall(setupvalue, lvl, 1, gun.MaxAmmo)
-        else
-            for i = 1, 30 do
-                local ok, v = pcall(getupvalue, lvl, i)
-                if not ok then break end
-                if type(v) == "number" and v == math.floor(v) and v >= 0 and v <= gun.MaxAmmo then
-                    pcall(setupvalue, lvl, i, gun.MaxAmmo) break
-                end
-            end
         end
     end
 end
 
 --======================================================================
--- (1) task.spawn hook: applies the weapon-setting mods every shot. GunLocal
---     fire frame level found dynamically.
+-- (1) task.spawn hook: gun-stat mods + aim the bullet at the target. The
+--     GunLocal fire frame level is found dynamically (it was NOT 3).
 --======================================================================
 local oldspawn
 oldspawn = hookfunction(task.spawn, newcclosure(function(a0, ...)
@@ -304,14 +258,27 @@ oldspawn = hookfunction(task.spawn, newcclosure(function(a0, ...)
         local ok, src = pcall(info, L, "s")
         if ok and type(src) == "string" and src:find("GunLocal") then lvl = L break end
     end
-    if lvl then pcall(applyGunMods, lvl) end
+    if not lvl then return oldspawn(a0, ...) end
+
+    local ok, gun = pcall(getupvalue, lvl, 12)
+    if ok and type(gun) == "table" then
+        pcall(applyGunMods, gun, lvl)
+
+        if (FEAT.SilentAim or FEAT.Ragebot) and cache.targetPart then
+            local origin = getstack(lvl, 12)
+            if typeof(origin) == "CFrame" then
+                setstack(lvl, 17, lookAt(origin.Position, cache.targetPart.Position))
+            end
+        end
+    end
 
     return oldspawn(a0, ...)
 end))
 
 --======================================================================
 -- (2) __namecall hook: take over the reported hit (through walls). METHOD-CALL
---     FREE - only reads properties + mutates arg tables.
+--     FREE - it only reads properties + mutates the arg tables (a method call
+--     here would corrupt the namecall dispatch).
 --======================================================================
 if hookmetamethod and getnamecall then
     local oldNamecall
@@ -380,8 +347,8 @@ end)
 
 --======================================================================
 -- Kill All: fire self-contained Fire+Damage shots at EVERY enemy in range.
--- (Server enforces gun Range on the real target position, so out-of-range
--- enemies can't be hit - a D.I.G map limitation, not a bug.)
+-- (Proven live: a fabricated Fire+Damage pair deals full damage.) Independent
+-- of the gun trigger; rate-limited to avoid server kicks.
 --======================================================================
 task.spawn(function()
     while true do
@@ -437,9 +404,8 @@ local weaponS  = combat:Section({ Name = "Weapon Mods", Side = 1 })
 local flagN = 0
 local function uflag() flagN = flagN + 1 return "dig_" .. flagN end
 
--- feature toggle WITH a keybind (main features)
-local function addFeature(section, label, key)
-    local t = section:Toggle({ Name = label, Flag = uflag(), Default = false,
+local function addToggle(section, label, key)
+    local t = section:Toggle({ Name = label, Flag = uflag(), Default = FEAT[key] and true or false,
         Callback = function(v) FEAT[key] = v and true or false end })
     if t and t.Keybind then
         pcall(function()
@@ -451,12 +417,6 @@ local function addFeature(section, label, key)
         end)
     end
     return t
-end
-
--- plain config toggle, NO keybind
-local function addToggle(section, label, key, default)
-    return section:Toggle({ Name = label, Flag = uflag(), Default = default and true or false,
-        Callback = function(v) FEAT[key] = v and true or false end })
 end
 
 local function addSlider(section, label, key, min, max, default, step, suffix)
@@ -481,34 +441,27 @@ local function addHitPart(section, label, key)
 end
 
 -- Silent Aim section
-addFeature(silentS, "Silent Aim", "SilentAim")
+addToggle(silentS, "Silent Aim", "SilentAim")
 addHitPart(silentS, "Hit Part", "HitPart")
 addSlider(silentS, "Hit Chance", "HitChance", 0, 100, 100, 1, "%")
-addToggle(silentS, "FOV", "FOVEnabled", false)
+addToggle(silentS, "FOV", "FOVEnabled")
 addSlider(silentS, "FOV Radius", "FOVRadius", 30, 1000, 150, 1, "px")
-addToggle(silentS, "Show FOV Circle", "ShowFOVCircle", false)
-pcall(function()
-    silentS:Label({ Name = "FOV Color" }):Colorpicker({
-        Name = "FOV Color", Flag = uflag(), Default = FEAT.FOVColor,
-        Callback = function(color) FEAT.FOVColor = color end })
-end)
-addToggle(silentS, "Team Check", "TeamCheck", true)
-addToggle(silentS, "Wall Check", "WallCheck", false)
+silentS:Toggle({ Name = "Team Check", Flag = uflag(), Default = true,
+    Callback = function(v) FEAT.TeamCheck = v and true or false end })
+addToggle(silentS, "Wall Check", "WallCheck")
 
 -- Ragebot section
-addFeature(rageS, "Ragebot", "Ragebot")
+addToggle(rageS, "Ragebot", "Ragebot")
 addHitPart(rageS, "Ragebot Hit Part", "RageHitPart")
 addSlider(rageS, "Ragebot Delay", "RagebotDelay", 0.03, 1, 0.06, 0.01, "s")
-addFeature(rageS, "Kill All", "KillAll")
+addToggle(rageS, "Kill All", "KillAll")
 addSlider(rageS, "Kill All Delay", "KillAllDelay", 0.1, 2, 0.25, 0.01, "s")
 
 -- Weapon Mods section
-addFeature(weaponS, "No Spread", "NoSpread")
-addFeature(weaponS, "Infinite Ammo", "InfAmmo")
-addFeature(weaponS, "Rapid Fire", "RapidFire")
+addToggle(weaponS, "No Spread", "NoSpread")
+addToggle(weaponS, "Infinite Ammo", "InfAmmo")
+addToggle(weaponS, "Rapid Fire", "RapidFire")
 addSlider(weaponS, "Fire Rate", "RapidRPM", 60, 3000, 1200, 1, "rpm")
-
--- finalize: adds the default Settings tab (Theming/Profiles/Autoload/Menu)
-pcall(function() window:Init() end)
+addToggle(weaponS, "Snapline", "Snapline")
 
 log("loaded")
