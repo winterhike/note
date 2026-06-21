@@ -479,6 +479,19 @@ run(function()
 		end
 	end
 
+	-- $$ banknote $$ diagnostics: report which REDLINER internals resolved
+	print('[banknote/REDLINER] discovery:',
+		'ShootFunction=' .. tostring(redline.ShootFunction ~= nil),
+		'ActionController=' .. tostring(redline.ActionController ~= nil),
+		'ActionFunction=' .. tostring(redline.ActionFunction ~= nil),
+		'MoveController=' .. tostring(redline.MoveController ~= nil),
+		'VelocityName=' .. tostring(redline.VelocityName ~= nil),
+		'ReplicateFunction=' .. tostring(redline.ReplicateFunction ~= nil),
+		'IndicatorController=' .. tostring(redline.IndicatorController ~= nil),
+		'IndicatorTable=' .. tostring(redline.IndicatorTable ~= nil),
+		'AttackPacket=' .. tostring(redline.AttackPacket ~= nil),
+		'ActionEventPacket=' .. tostring(redline.ActionEventPacket ~= nil))
+
 	local kills = sessioninfo:AddItem('Kills')
 	local deaths = sessioninfo:AddItem('Deaths')
 	local games = sessioninfo:AddItem('Games')

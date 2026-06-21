@@ -23,42 +23,6 @@ local RunService = game:GetService("RunService")
 local function log(...) print("[banknote/REDLINER]", ...) end
 local function notify(msg) pcall(function() BN:Notification(tostring(msg), 4) end) end
 
---======================================================================
--- 0. Force REDLINER's parallel-Luau (Actors) onto the main thread, the same
---    way Phantom Forces needs. Vape normally injects into the actors; we run
---    on the main thread instead, so the combat hooks only intercept the real
---    game functions once parallel Lua runs on the main thread. Set the fast
---    flag + rejoin once if it isn't already on.
---======================================================================
-do
-    local function parallelOnMain()
-        if not getfflag then return nil end
-        local ok, v = pcall(getfflag, "DebugRunParallelLuaOnMainThread")
-        if not ok then return nil end
-        return tostring(v):lower() == "true"
-    end
-
-    if parallelOnMain() ~= true then
-        if getgenv()._RedlinerFflagTried then
-            warn("[banknote/REDLINER] parallel-Lua-on-main still off after rejoin; proceeding best-effort")
-        elseif setfflag then
-            getgenv()._RedlinerFflagTried = true
-            notify("REDLINER: enabling cheat engine, rejoining...")
-            pcall(function() setfflag("DebugRunParallelLuaOnMainThread", "True") end)
-            if queue_on_teleport then
-                pcall(function()
-                    queue_on_teleport('getgenv()._RedlinerFflagTried=true; loadstring(game:HttpGet("https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/loader.lua"))()')
-                end)
-            end
-            task.wait(0.5)
-            pcall(function() game:GetService("TeleportService"):Teleport(game.PlaceId) end)
-            return
-        else
-            warn("[banknote/REDLINER] parallel Lua off-main-thread and setfflag unavailable")
-        end
-    end
-end
-
 -- pin fetches to the latest commit so edits aren't served stale by the CDN
 do
     local ok, body = pcall(function()
