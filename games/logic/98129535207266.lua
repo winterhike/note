@@ -12,15 +12,21 @@
 --           hit instance for that hash. The server trusts it.
 --
 -- Because step 2 uses the client's own raycast, a wall between you and the
--- target makes the bullet report the WALL (the old ragebot's problem: it
--- "just shoots" and walls eat the bullets). The fix, like Vape/PF ragebots,
--- is to take over the reported hit:
---   * rewrite the Fire Orgin to point at the target (trajectory stays
---     consistent with the hit the server is told about), and
+-- target makes the bullet report the WALL. The fix (like Vape/PF ragebots) is
+-- to take over the reported hit:
+--   * rewrite the Fire Orgin to point at the target, and
 --   * override the Damage Instance/CFrame/Size to the target's body part,
 --     so the hit lands on them THROUGH walls.
--- Kill All additionally appends one bullet per enemy to each Fire and emits a
--- matching Damage, so a single trigger pull tags everyone in range.
+-- Kill All appends one bullet per enemy to each Fire and emits a matching
+-- Damage, tagging everyone in range per trigger pull.
+--
+-- IMPORTANT: the __namecall hook must NOT call any methods (:FindFirstChild,
+-- :GetPlayers, ...). A method call inside a __namecall hook overwrites the
+-- engine's "current namecall method", so the subsequent oldNamecall(self,...)
+-- would dispatch the WRONG method (that was the "argument #1 expects a string"
+-- / "cast string to bool" spam). So everything the hook needs (target part,
+-- enemy parts, the Damage remote) is precomputed in the Heartbeat loop, and
+-- the hook only reads properties + mutates the argument tables.
 --
 -- GunLocal internals (decompiled) used for the gun-stat mods:
 --   u66 frame: upvalue 1 = current ammo, upvalue 12 = settings table u4
@@ -84,8 +90,15 @@ local FEAT = {
 
 local target = nil  -- current target Character (Model) for silent/rage
 
+-- precomputed each Heartbeat so the __namecall hook never calls a method
+local cache = {
+    targetPart = nil,  -- Instance: current target's hit part
+    enemyParts = {},   -- Instance[]: hit parts of every enemy in range (Kill All)
+    dmgRemote  = nil,   -- the equipped gun's GunServer.Damage RemoteEvent
+}
+
 --======================================================================
--- target selection helpers
+-- target selection helpers (only called OUTSIDE the __namecall hook)
 --======================================================================
 local function isEnemy(plr)
     if plr == lplr then return false end
@@ -93,12 +106,12 @@ local function isEnemy(plr)
     return true
 end
 
--- a live, hittable part on a character (preferred hit part, then fallbacks)
 local function getHitPart(char)
     if not char then return nil end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return nil end
-    return char:FindFirstChild(FEAT.HitPart)
+    local hp = type(FEAT.HitPart) == "string" and FEAT.HitPart or "Head"
+    return char:FindFirstChild(hp)
         or char:FindFirstChild("Head")
         or char:FindFirstChild("HumanoidRootPart")
         or char:FindFirstChild("Torso")
@@ -140,28 +153,13 @@ local function nearestByDistance()
     return best
 end
 
--- every alive enemy whose hit part is within `range` studs of origin
-local function enemiesInRange(origin, range)
-    local out = {}
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if isEnemy(plr) and plr.Character then
-            local part = getHitPart(plr.Character)
-            if part and (part.Position - origin).Magnitude <= range then
-                out[#out + 1] = plr.Character
-            end
-        end
-    end
-    return out
-end
-
 local function equippedTool()
     local char = lplr.Character
     return char and char:FindFirstChildOfClass("Tool")
 end
 
 -- the equipped gun's Range setting (server rejects hits past it); fallback 350
-local function equippedRange()
-    local tool = equippedTool()
+local function equippedRange(tool)
     local s = tool and tool:FindFirstChild("Settings")
     local r = s and s:FindFirstChild("Range")
     return (r and r.Value) or 350
@@ -180,7 +178,7 @@ pcall(function()
 end)
 
 --======================================================================
--- target update loop
+-- target + cache update loop (all the method calls live here, NOT in the hook)
 --======================================================================
 RunService.Heartbeat:Connect(function()
     if FEAT.Ragebot then
@@ -191,10 +189,35 @@ RunService.Heartbeat:Connect(function()
         target = nil
     end
 
+    -- refresh cache for the namecall hook
+    cache.targetPart = target and getHitPart(target) or nil
+
+    local tool = equippedTool()
+    local gs = tool and tool:FindFirstChild("GunServer")
+    cache.dmgRemote = gs and gs:FindFirstChild("Damage") or nil
+
+    if FEAT.KillAll and FEAT.Ragebot then
+        local root = lplr.Character and (lplr.Character:FindFirstChild("HumanoidRootPart") or lplr.Character:FindFirstChild("Torso"))
+        local range = equippedRange(tool)
+        local parts = {}
+        if root then
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if isEnemy(plr) and plr.Character then
+                    local part = getHitPart(plr.Character)
+                    if part and (part.Position - root.Position).Magnitude <= range then
+                        parts[#parts + 1] = part
+                    end
+                end
+            end
+        end
+        cache.enemyParts = parts
+    else
+        cache.enemyParts = {}
+    end
+
     if snapline then
-        if FEAT.Snapline and target then
-            local part = getHitPart(target)
-            local sp, on = part and camera:WorldToViewportPoint(part.Position)
+        if FEAT.Snapline and cache.targetPart then
+            local sp, on = camera:WorldToViewportPoint(cache.targetPart.Position)
             if on then
                 snapline.From = UserInputService:GetMouseLocation()
                 snapline.To = v2(sp.X, sp.Y)
@@ -254,14 +277,13 @@ oldspawn = hookfunction(task.spawn, newcclosure(function(a0, ...)
     if ok and type(gun) == "table" then
         pcall(applyGunMods, gun)
 
-        if (FEAT.SilentAim or FEAT.Ragebot) and target then
+        if (FEAT.SilentAim or FEAT.Ragebot) and cache.targetPart then
             if math.random(1, 100) <= FEAT.HitChance then
-                local part = getHitPart(target)
                 local origin = getstack(3, 12)
-                if part and typeof(origin) == "CFrame" then
+                if typeof(origin) == "CFrame" then
                     -- aim straight at the target part; the Damage override
                     -- below reports the real hit, so no drop/lead is needed.
-                    setstack(3, 17, lookAt(origin.Position, part.Position))
+                    setstack(3, 17, lookAt(origin.Position, cache.targetPart.Position))
                 end
             end
         end
@@ -271,84 +293,79 @@ oldspawn = hookfunction(task.spawn, newcclosure(function(a0, ...)
 end))
 
 --======================================================================
--- (2) __namecall hook on the Fire/Damage remotes: take over the reported hit
---     so shots land on the target THROUGH walls, and (Kill All) tag everyone.
+-- (2) __namecall hook on the Fire/Damage remotes. METHOD-CALL FREE: it only
+--     reads properties and mutates the argument tables, using the Heartbeat
+--     cache. Through-walls hit override + Kill All.
 --======================================================================
-local hashTarget = {}   -- bullet hash -> target Character (per shot)
-
-local function uniqueHash(i)
-    return tostring(lplr.UserId) .. "/" .. tostring(os.clock()) .. "/X" .. tostring(i)
-end
+local hashTarget = {}   -- bullet hash -> target part Instance (per shot)
 
 if hookmetamethod and getnamecall then
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-        if checkcaller() or typeof(self) ~= "Instance" then
-            return oldNamecall(self, ...)
-        end
+        -- read the method FIRST and make no method calls before oldNamecall
+        if checkcaller() then return oldNamecall(self, ...) end
         local method = getnamecall()
         if method ~= "FireServer" then return oldNamecall(self, ...) end
-        local par = self.Parent
-        if not (par and par.Name == "GunServer") then return oldNamecall(self, ...) end
-        if not (FEAT.SilentAim or FEAT.Ragebot) or not target then return oldNamecall(self, ...) end
+        if typeof(self) ~= "Instance" then return oldNamecall(self, ...) end
 
-        -- Fire: rewrite each bullet's Orgin to aim at the target; optionally
-        -- append a bullet per enemy for Kill All.
-        if self.Name == "Fire" then
-            local args = { ... }
-            local list = args[1]
-            if type(list) == "table" and list[1] and typeof(list[1].Orgin) == "CFrame" then
-                local muzzle = list[1].Orgin.Position
-                local tp = getHitPart(target)
-                if tp then
-                    for _, b in ipairs(list) do
-                        if typeof(b.Orgin) == "CFrame" and b.Hash then
-                            b.Orgin = lookAt(muzzle, tp.Position)
-                            hashTarget[b.Hash] = target
-                        end
-                    end
+        local par = self.Parent                 -- __index, safe
+        if not par or par.Name ~= "GunServer" then return oldNamecall(self, ...) end
+        if not (FEAT.SilentAim or FEAT.Ragebot) then return oldNamecall(self, ...) end
 
-                    if FEAT.KillAll then
-                        local dmgRemote = par:FindFirstChild("Damage")
-                        local range = equippedRange()
-                        for _, ec in ipairs(enemiesInRange(muzzle, range)) do
-                            if ec ~= target then
-                                local ep = getHitPart(ec)
-                                if ep then
-                                    local h = uniqueHash(#list)
-                                    list[#list + 1] = { Hash = h, Orgin = lookAt(muzzle, ep.Position) }
-                                    hashTarget[h] = ec
-                                    -- the appended bullets have no client sim,
-                                    -- so emit their Damage ourselves shortly after.
-                                    if dmgRemote then
-                                        task.delay(0.04, function()
-                                            local p = getHitPart(ec)
-                                            if p then
-                                                pcall(function()
-                                                    dmgRemote:FireServer({ Instance = p, CFrame = cnew(p.Position), Size = p.Size }, h)
-                                                end)
-                                            end
-                                        end)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    return oldNamecall(self, list)
+        local rname = self.Name                 -- __index, safe
+
+        -- Fire: rewrite each bullet Orgin to aim at the target; append a
+        -- bullet per enemy for Kill All.
+        if rname == "Fire" then
+            local tp = cache.targetPart
+            if not tp then return oldNamecall(self, ...) end
+            local list = (...)
+            if type(list) ~= "table" or type(list[1]) ~= "table" or typeof(list[1].Orgin) ~= "CFrame" then
+                return oldNamecall(self, ...)
+            end
+            local muzzle = list[1].Orgin.Position   -- property read, safe
+            local tpPos = tp.Position
+            for _, b in ipairs(list) do
+                if typeof(b.Orgin) == "CFrame" and b.Hash then
+                    b.Orgin = lookAt(muzzle, tpPos)
+                    hashTarget[b.Hash] = tp
                 end
             end
-            return oldNamecall(self, ...)
+
+            if FEAT.KillAll then
+                local dmgRemote = cache.dmgRemote
+                local n = #list
+                for _, ep in ipairs(cache.enemyParts) do
+                    if ep ~= tp then
+                        n = n + 1
+                        local h = tostring(lplr.UserId) .. "/" .. tostring(os.clock()) .. "/X" .. n
+                        local epPos = ep.Position
+                        list[n] = { Hash = h, Orgin = lookAt(muzzle, epPos) }
+                        hashTarget[h] = ep
+                        -- appended bullets have no client sim, so emit their
+                        -- Damage ourselves (deferred -> bypasses this hook).
+                        if dmgRemote then
+                            task.delay(0.04, function()
+                                if ep.Parent then
+                                    pcall(function()
+                                        dmgRemote:FireServer({ Instance = ep, CFrame = cnew(ep.Position), Size = ep.Size }, h)
+                                    end)
+                                end
+                            end)
+                        end
+                    end
+                end
+            end
+
+            return oldNamecall(self, list)
         end
 
-        -- Damage: override the reported hit with the bullet's intended target,
-        -- so walls don't matter.
-        if self.Name == "Damage" then
-            local args = { ... }
-            local hit, hash = args[1], args[2]
-            local tgtChar = (hash and hashTarget[hash]) or target
-            if type(hit) == "table" and tgtChar then
-                local tp = getHitPart(tgtChar)
-                if tp then
+        -- Damage: override the reported hit with the bullet's intended target.
+        if rname == "Damage" then
+            local hit, hash = ...
+            if type(hit) == "table" then
+                local tp = (hash and hashTarget[hash]) or cache.targetPart
+                if tp and tp.Parent then
                     hit.Instance = tp
                     hit.CFrame   = cnew(tp.Position)
                     hit.Size     = tp.Size
@@ -367,8 +384,7 @@ end
 
 --======================================================================
 -- Ragebot autofire: pulse the equipped tool. For automatic guns a single
--- Activate() sprays; for semi-auto each Activate() is one shot. The hooks
--- above redirect every bullet onto the target(s).
+-- Activate() sprays; for semi-auto each Activate() is one shot.
 --======================================================================
 local firing = false
 task.spawn(function()
@@ -431,7 +447,10 @@ addToggle(aimSec, "Kill All (Ragebot)", "KillAll")
 pcall(function()
     aimSec:Dropdown({ Name = "Hit Part", Flag = uflag(),
         Items = { "Head", "Torso", "HumanoidRootPart" }, Default = "Head", Multi = false,
-        Callback = function(v) FEAT.HitPart = v end })
+        Callback = function(v)
+            if type(v) == "table" then v = v[1] end
+            FEAT.HitPart = (type(v) == "string" and v) or "Head"
+        end })
 end)
 addSlider(aimSec, "Hit Chance", "HitChance", 0, 100, 100, 1, "%")
 aimSec:Toggle({ Name = "Team Check", Flag = uflag(), Default = true,
