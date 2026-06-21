@@ -559,6 +559,7 @@ run(function()
 		end
 		redline.ShootFunction = realFn(redline.ShootFunction)
 		redline.ReplicateFunction = realFn(redline.ReplicateFunction)
+		redline.ActionFunction = realFn(redline.ActionFunction)
 	end
 
 	-- $$ banknote $$ diagnostics: report which REDLINER internals resolved
@@ -574,6 +575,21 @@ run(function()
 		'IndicatorTable=' .. tostring(redline.IndicatorTable ~= nil),
 		'AttackPacket=' .. tostring(redline.AttackPacket ~= nil),
 		'ActionEventPacket=' .. tostring(redline.ActionEventPacket ~= nil))
+
+	-- $$ banknote $$: report whether the LIVE controller instances actually
+	-- resolve (Classes populated). If these are false, controllers are nil and
+	-- no controller-based feature can work regardless of discovery succeeding.
+	local liveAction = redline[redline.ActionController]
+	local liveMove = redline[redline.MoveController]
+	print('[banknote/REDLINER] live controllers:',
+		'Action=' .. tostring(liveAction ~= nil),
+		'Move=' .. tostring(liveMove ~= nil),
+		'ClassesCount=' .. tostring((function()
+			local c = resolveClasses()
+			local n = 0
+			if type(c) == 'table' then for _ in pairs(c) do n += 1 end end
+			return n
+		end)()))
 
 	local kills = sessioninfo:AddItem('Kills')
 	local deaths = sessioninfo:AddItem('Deaths')
