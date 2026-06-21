@@ -322,7 +322,7 @@ run(function()
 			root = require(v)
 			if not rawget(root, 'loaded') then
 				-- $$ banknote $$: timeout so a missing/renamed 'loaded' flag can't hang the load.
-				local deadline = tick() + 8
+				local deadline = tick() + 3
 				repeat
 					task.wait()
 				until rawget(root, 'loaded') or vape.Loaded == nil or tick() > deadline
@@ -539,7 +539,10 @@ do
 	local function Hook(...)
 		local results = table.pack(oldscan(...))
 		for _, v in HitboxHook.Hooks do
-			if v[2](results) then
+			-- $$ banknote $$: pcall each hook so a return-structure mismatch
+			-- (REDLINER update) can't error out of castOnce and break the game.
+			local ok, ret = pcall(v[2], results)
+			if ok and ret then
 				return {}
 			end
 		end

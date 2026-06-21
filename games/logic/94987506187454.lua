@@ -162,6 +162,23 @@ local function makeModuleFactory(categoryName)
                 Default = module.Enabled,
                 Callback = function(v) setEnabled(v) end,
             })
+            -- native banknote keybind (Toggle / Hold / Always selectable in
+            -- the keybind UI) that drives the module, restoring Vape's keybinds.
+            if module._bnToggle and module._bnToggle.Keybind then
+                pcall(function()
+                    module._bnToggle:Keybind({
+                        Name = module.Name,
+                        Flag = uflag(),
+                        Mode = "Toggle",
+                        Callback = function(active)
+                            setEnabled(active and true or false)
+                            if module._bnToggle and module._bnToggle.Set then
+                                pcall(function() module._bnToggle:Set(module.Enabled) end)
+                            end
+                        end,
+                    })
+                end)
+            end
         end
 
         function module:Toggle()
