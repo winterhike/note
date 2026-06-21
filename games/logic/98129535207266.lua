@@ -35,8 +35,8 @@ local lplr   = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local info           = debug.info
-local getupvalue     = getupvalue or debug.getupvalue
-local setupvalue     = setupvalue or debug.setupvalue
+local getupvalue     = debug.getupvalue
+local setupvalue     = debug.setupvalue
 local hookfunction   = hookfunction or replaceclosure
 local hookmetamethod = hookmetamethod
 local getnamecall    = getnamecallmethod or get_namecall_method
@@ -80,10 +80,7 @@ local target = nil  -- current target Character (Model) for silent/rage
 
 local cache = {
     targetPart = nil,   -- Instance: current target's hit part
-    settings   = nil,   -- table: equipped gun's live settings table (for pinning)
 }
-
-local pinGunSettings  -- forward declaration (used by the Heartbeat below)
 
 --======================================================================
 -- helpers
@@ -222,62 +219,80 @@ RunService.Heartbeat:Connect(function()
         target = nil
         cache.targetPart = nil
     end
-
-    -- continuously pin weapon-mod settings on the cached gun table so the mods
-    -- apply immediately (not only on the next shot).
-    if cache.settings then pcall(pinGunSettings, cache.settings) end
 end)
 
 --======================================================================
--- weapon-setting mods. RapidFire/NoSpread mutate the live settings table;
--- InfAmmo refills the ammo upvalue (needs the live frame -> done in the hook).
+-- weapon-setting mods (RapidFire / NoSpread mutate the live settings table;
+-- InfAmmo refills the ammo upvalue). This is the exact approach verified
+-- working: the settings table is upvalue 12 of the fire frame, ammo upvalue 1.
+-- We still locate the frame level dynamically, and validate upvalue 12 is the
+-- settings table (falling back to a scan for guns with a different layout).
 --======================================================================
 local origCache = setmetatable({}, { __mode = "k" })
-pinGunSettings = function(gun)
-    if type(gun) ~= "table" then return end
+
+local function looksLikeSettings(v)
+    return type(v) == "table" and rawget(v, "Period") ~= nil and rawget(v, "Spread") ~= nil
+        and rawget(v, "BulletSpeed") ~= nil and rawget(v, "MaxAmmo") ~= nil
+end
+
+local function applyGunMods(lvl)
+    -- settings table: upvalue 12 (verified), else scan
+    local gun
+    local ok12, up12 = pcall(getupvalue, lvl, 12)
+    if ok12 and looksLikeSettings(up12) then
+        gun = up12
+    else
+        for i = 1, 30 do
+            local ok, v = pcall(getupvalue, lvl, i)
+            if not ok then break end
+            if looksLikeSettings(v) then gun = v break end
+        end
+    end
+    if not gun then return end
+
+    if not getgenv()._DIGGunHooked then
+        getgenv()._DIGGunHooked = true
+        log("weapon mods locked onto gun settings (Period/Spread/Ammo)")
+    end
+
     local o = origCache[gun]
     if not o then
         o = { Period = gun.Period, Spread = gun.Spread, MinSpread = gun.MinSpread, MaxSpread = gun.MaxSpread }
         origCache[gun] = o
     end
+
     if FEAT.RapidFire then
         gun.Period = math.clamp(60 / FEAT.RapidRPM, 0.005, math.max(o.Period or 0.1, 0.005))
     elseif o.Period then
         gun.Period = o.Period
     end
+
     if FEAT.NoSpread then
         gun.Spread, gun.MinSpread, gun.MaxSpread = 0, 0, 0
     else
         gun.Spread, gun.MinSpread, gun.MaxSpread = o.Spread, o.MinSpread, o.MaxSpread
     end
-end
 
-local function findGunUpvalues(lvl)
-    local settings, ammoIdx
-    for i = 1, 30 do
-        local ok, v = pcall(getupvalue, lvl, i)
-        if not ok then break end
-        if not settings and type(v) == "table"
-            and rawget(v, "Period") ~= nil and rawget(v, "Spread") ~= nil
-            and rawget(v, "BulletSpeed") ~= nil and rawget(v, "MaxAmmo") ~= nil then
-            settings = v
+    -- ammo: upvalue 1 (verified), else first integer upvalue <= MaxAmmo
+    if FEAT.InfAmmo and type(gun.MaxAmmo) == "number" then
+        local ok1, cur = pcall(getupvalue, lvl, 1)
+        if ok1 and type(cur) == "number" and cur <= gun.MaxAmmo then
+            pcall(setupvalue, lvl, 1, gun.MaxAmmo)
+        else
+            for i = 1, 30 do
+                local ok, v = pcall(getupvalue, lvl, i)
+                if not ok then break end
+                if type(v) == "number" and v == math.floor(v) and v >= 0 and v <= gun.MaxAmmo then
+                    pcall(setupvalue, lvl, i, gun.MaxAmmo) break
+                end
+            end
         end
     end
-    if not settings then return nil end
-    for i = 1, 30 do
-        local ok, v = pcall(getupvalue, lvl, i)
-        if not ok then break end
-        if type(v) == "number" and v == math.floor(v) and v >= 0 and v <= settings.MaxAmmo then
-            ammoIdx = i
-            break
-        end
-    end
-    return settings, ammoIdx
 end
 
 --======================================================================
--- (1) task.spawn hook: caches the live settings table, pins the mods, refills
---     ammo. GunLocal fire frame level found dynamically.
+-- (1) task.spawn hook: applies the weapon-setting mods every shot. GunLocal
+--     fire frame level found dynamically.
 --======================================================================
 local oldspawn
 oldspawn = hookfunction(task.spawn, newcclosure(function(a0, ...)
@@ -289,16 +304,7 @@ oldspawn = hookfunction(task.spawn, newcclosure(function(a0, ...)
         local ok, src = pcall(info, L, "s")
         if ok and type(src) == "string" and src:find("GunLocal") then lvl = L break end
     end
-    if lvl then
-        local gun, ammoIdx = findGunUpvalues(lvl)
-        if gun then
-            cache.settings = gun
-            pcall(pinGunSettings, gun)
-            if FEAT.InfAmmo and ammoIdx and type(gun.MaxAmmo) == "number" then
-                pcall(setupvalue, lvl, ammoIdx, gun.MaxAmmo)
-            end
-        end
-    end
+    if lvl then pcall(applyGunMods, lvl) end
 
     return oldspawn(a0, ...)
 end))
