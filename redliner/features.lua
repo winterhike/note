@@ -351,6 +351,15 @@ run(function()
 		Teams = redline.Teams
 	}, {
 		__index = function(self, ind)
+			-- $$ banknote $$: resolve controllers live. In the lobby root.Classes is empty;
+			-- REDLINER repopulates / may swap the table on match start, so re-fetch each lookup.
+			local live = rawget(root, 'Classes')
+			if live then
+				local v = rawget(live, ind)
+				if v ~= nil then
+					return v
+				end
+			end
 			return rawget(classList, ind)
 		end
 	})
