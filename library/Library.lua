@@ -4998,61 +4998,151 @@ local Library = {
             end
 
             --==========================================================
-            -- "lua" page: loads user-made .lua files that build their own
-            -- banknote-UI features. Folder: Library.Directory .. "/Luas".
-            -- Each lua should `return function(Library, Page) ... end` and
-            -- build a Section on the given Page using the UI library API.
+            -- "lua" page: a MANAGER for user-made .lua files. Each lua is
+            -- placed into the category/tab IT declares (Combat / Misc /
+            -- Visuals / ...), NOT into this tab. Pick one or more luas from
+            -- the dropdown and press Load. Refresh re-scans the folder so you
+            -- can load files you just dropped in.
+            -- Folder: Library.Directory .. "/Luas".
             --==========================================================
             local LuaPage = Self:Page({Name = "lua"})
             do
                 local LuasFolder = Library.Directory .. Library.Folders.Luas
                 if not isfolder(LuasFolder) then makefolder(LuasFolder) end
 
-                local InfoSection = LuaPage:Section({Name = "Custom Luas", Side = 1})
-
-                local Warn = InfoSection:Label({Name = "we are not at fault if the certain lua is detected, use with caution!"})
+                -- center the page content into one column (it looked empty)
                 pcall(function()
-                    local txt = Warn.Items["Text"].Instance
-                    txt.TextColor3 = Color3.fromRGB(255, 45, 45)
-                    txt.TextWrapped = true
-                    txt.AutomaticSize = Enum.AutomaticSize.Y
-                    txt.Size = UDim2.new(1, -10, 0, 0)
-                    local frame = Warn.Items["Label"].Instance
-                    frame.AutomaticSize = Enum.AutomaticSize.Y
-                    frame.Size = UDim2.new(1, 0, 0, 0)
+                    local pageInst = LuaPage.Items["Page"].Instance
+                    local lay = pageInst:FindFirstChildOfClass("UIListLayout")
+                    if lay then
+                        lay.HorizontalFlex = Enum.UIFlexAlignment.None
+                        lay.HorizontalAlignment = Enum.HorizontalAlignment.Center
+                    end
+                    LuaPage.ColumnsData[1].Instance.Size = UDim2.new(0, 360, 1, 0)
+                    LuaPage.ColumnsData[2].Instance.Visible = false
                 end)
 
-                local function loadLua(path)
+                local Section = LuaPage:Section({Name = "Custom Luas", Side = 1})
+
+                local function centerLabel(lbl)
+                    pcall(function()
+                        local t = lbl.Items["Text"].Instance
+                        t.TextWrapped = true
+                        t.TextXAlignment = Enum.TextXAlignment.Center
+                        t.AutomaticSize = Enum.AutomaticSize.Y
+                        t.Size = UDim2.new(1, -10, 0, 0)
+                        local f = lbl.Items["Label"].Instance
+                        f.AutomaticSize = Enum.AutomaticSize.Y
+                        f.Size = UDim2.new(1, 0, 0, 0)
+                    end)
+                end
+
+                local Warn = Section:Label({Name = "we are not at fault if the certain lua is detected, use with caution!"})
+                centerLabel(Warn)
+                pcall(function() Warn.Items["Text"].Instance.TextColor3 = Color3.fromRGB(255, 45, 45) end)
+
+                local PathLabel = Section:Label({Name = "folder: " .. LuasFolder})
+                centerLabel(PathLabel)
+
+                local selected = {}
+                local loadedFiles = {}
+
+                -- scan the folder for *.lua, return basenames (no path/ext)
+                local function scanLuas()
+                    local out = {}
+                    local files = (isfolder(LuasFolder) and listfiles(LuasFolder)) or {}
+                    for _, path in ipairs(files) do
+                        if type(path) == "string" and path:sub(-4):lower() == ".lua" then
+                            local name = path:gsub("\\", "/"):match("([^/]+)%.lua$")
+                            if name then out[#out + 1] = name end
+                        end
+                    end
+                    return out
+                end
+
+                -- find an existing page (tab) by name, else create it
+                local function getOrCreatePage(name)
+                    for _, p in ipairs(Self.Pages or {}) do
+                        if p.Name == name then return p end
+                    end
+                    return Self:Page({Name = name})
+                end
+
+                local LuaDropdown = Section:Dropdown({
+                    Name = "Luas",
+                    Flag = "BanknoteLuas",
+                    Items = scanLuas(),
+                    Default = {},
+                    Multi = true,
+                    Callback = function(value)
+                        selected = (type(value) == "table") and value or {}
+                    end
+                })
+
+                local function loadOne(name)
+                    if loadedFiles[name] then
+                        Library:Notification(name .. " is already loaded", 3, Library.Theme.Accent)
+                        return
+                    end
+                    local path = LuasFolder .. "/" .. name .. ".lua"
                     local ok, src = pcall(readfile, path)
-                    if not ok or type(src) ~= "string" or src == "" then return end
+                    if not ok or type(src) ~= "string" or src == "" then
+                        Library:Notification("Could not read " .. name, 5, Color3.fromRGB(255, 0, 0))
+                        return
+                    end
                     local chunk, err = loadstring(src)
                     if not chunk then
-                        Library:Notification("Lua compile error (" .. path .. "): " .. tostring(err), 6, Color3.fromRGB(255, 0, 0))
+                        Library:Notification("Compile error in " .. name .. ": " .. tostring(err), 6, Color3.fromRGB(255, 0, 0))
                         return
                     end
                     local ranOk, ret = pcall(chunk)
                     if not ranOk then
-                        Library:Notification("Lua error (" .. path .. "): " .. tostring(ret), 6, Color3.fromRGB(255, 0, 0))
+                        Library:Notification("Error in " .. name .. ": " .. tostring(ret), 6, Color3.fromRGB(255, 0, 0))
                         return
                     end
-                    -- preferred contract: the lua returns function(Library, Page)
-                    if type(ret) == "function" then
-                        pcall(ret, Library, LuaPage)
+                    -- accept { Category=, Build=function(Library, Page) } or a bare function
+                    local category, build
+                    if type(ret) == "table" then
+                        category = ret.Category or ret.Tab or ret.Directory or "Misc"
+                        build = ret.Build or ret.build
+                    elseif type(ret) == "function" then
+                        category, build = "Misc", ret
+                    end
+                    if type(build) ~= "function" then
+                        Library:Notification(name .. " has no Build function / Category", 5, Color3.fromRGB(255, 0, 0))
+                        return
+                    end
+                    local page = getOrCreatePage(tostring(category))
+                    local okBuild, e = pcall(build, Library, page)
+                    if okBuild then
+                        loadedFiles[name] = true
+                        Library:Notification("Loaded " .. name .. " -> " .. tostring(category) .. " tab", 4, Library.Theme.Accent)
+                    else
+                        Library:Notification("Build error in " .. name .. ": " .. tostring(e), 6, Color3.fromRGB(255, 0, 0))
                     end
                 end
 
-                local files = (isfolder(LuasFolder) and listfiles(LuasFolder)) or {}
-                local loaded = 0
-                for _, path in ipairs(files) do
-                    if type(path) == "string" and path:sub(-4):lower() == ".lua" then
-                        loadLua(path)
-                        loaded = loaded + 1
+                Section:Button({
+                    Name = "Load selected",
+                    Callback = function()
+                        if not selected or #selected == 0 then
+                            Library:Notification("No luas selected", 3, Color3.fromRGB(255, 0, 0))
+                            return
+                        end
+                        for _, name in ipairs(selected) do loadOne(name) end
                     end
-                end
-                if loaded == 0 then
-                    InfoSection:Label({Name = "No luas found. Drop .lua files into:"})
-                    InfoSection:Label({Name = LuasFolder})
-                end
+                })
+
+                Section:Button({
+                    Name = "Refresh list",
+                    Callback = function()
+                        LuaDropdown:Refresh(scanLuas())
+                        Library:Notification("Refreshed luas from " .. LuasFolder, 4, Library.Theme.Accent)
+                    end
+                })
+
+                -- tell the user where to drop their luas
+                Library:Notification("Luas folder: " .. LuasFolder, 8, Library.Theme.Accent)
             end
         end
     end
