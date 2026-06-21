@@ -17544,7 +17544,7 @@ local function drawhealthbar(player, box, hum, size, position, dt)
 end
 
 local function drawbox(player, box, size, position)
-    if not (ConfigBox.MasterEnabled and ConfigBox.Enable) then
+    if not ConfigBox.MasterEnabled then
         box.box.square.Visible = false
         box.box.outline.Visible = false
         box.box.inline.Visible = false
@@ -17660,9 +17660,11 @@ local function drawtracers(player, box, root)
     if vis then
         box.Tracer.Visible = true
         box.Tracer.To = Vector2.new(pos.X, pos.Y)
-        box.Tracer.From = (_G.Config.Tracers.FromBottom == nil or _G.Config.Tracers.FromBottom)
-            and espScreenAnchor(0.5, 1)
-            or espScreenAnchor(0.5, 0.5)
+        -- compute the tracer origin directly from the viewport so it never
+        -- depends on a possibly-nil screen-anchor helper.
+        local vp = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize) or Vector2.new(1920, 1080)
+        local fromBottom = (_G.Config.Tracers.FromBottom == nil or _G.Config.Tracers.FromBottom)
+        box.Tracer.From = fromBottom and Vector2.new(vp.X * 0.5, vp.Y) or Vector2.new(vp.X * 0.5, vp.Y * 0.5)
         box.Tracer.Color = lerpcolor(_G.Config.Tracers.Color or Color3.fromRGB(255, 255, 255), _G.Config.Tracers.Color2 or _G.Config.Tracers.Color or Color3.fromRGB(255, 255, 255), 0.5)
         box.Tracer.Thickness = _G.Config.Tracers.Thickness or 1
     else
