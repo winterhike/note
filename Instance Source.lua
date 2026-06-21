@@ -89,9 +89,20 @@ local function instanceHideErrorPromptsStep()
 end
 
 local function instanceRunLoadingBootstrap()
-    -- $$ banknote $$: skip Instance's loading GUI + error-hider render loop;
-    -- only preload the modules the features need.
+    local runService = game:GetService("RunService")
+    local dismissLoading = instanceShowLoadingNotification()
+    local hideErrors = true
+    local hideConn = runService.RenderStepped:Connect(function()
+        if hideErrors then instanceHideErrorPromptsStep() end
+    end)
+
+    task.wait(0.8)
+
     pcall(instancePreloadCoreModules)
+
+    hideErrors = false
+    if hideConn then hideConn:Disconnect() hideConn = nil end
+    if dismissLoading then dismissLoading() end
 end
 
 local RunService = game:GetService("RunService")
@@ -4675,8 +4686,7 @@ return Library]==]
     error("[instance] library failed to load")
 end
 
--- $$ banknote $$: route Instance UI through the banknote compatibility shim
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/games/logic/shim.lua?_=" .. tostring(tick()) .. tostring(math.random(1, 1e6))))()
+local Library = loadInstanceLibrary()
 
 local INSTANCE_ACCENT = Color3.fromRGB(0, 200, 255)
 local INSTANCE_BROWN_ACCENTS = {
@@ -7959,7 +7969,7 @@ local RS = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
-getgenv().CombatMods = getgenv().CombatMods or {
+getgenv().CombatMods = {
     RapidFire = false,
     NoSpread = false,
     NoRecoil = false,
@@ -7974,13 +7984,11 @@ getgenv().CombatMods = getgenv().CombatMods or {
 }
 
 task.spawn(function()
-    if getgenv().BanknoteGunHooked then return end
     local success, GunModule = pcall(function()
         return require(LocalPlayer.PlayerScripts.Modules.ItemTypes.Gun)
     end)
     
     if success and GunModule then
-        getgenv().BanknoteGunHooked = true
         getgenv().CombatMods.GunModule = GunModule
         
         if GunModule.StartShooting then
@@ -8017,13 +8025,11 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    if getgenv().BanknoteSpreadHooked then return end
     local success, GameplayUtility = pcall(function()
         return require(RS.Modules.GameplayUtility)
     end)
     
     if success and GameplayUtility and GameplayUtility.GetSpread then
-        getgenv().BanknoteSpreadHooked = true
         getgenv().CombatMods.GameplayUtility = GameplayUtility
         getgenv().CombatMods.OriginalGetSpread = GameplayUtility.GetSpread
         
@@ -8037,13 +8043,11 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    if getgenv().BanknoteMeleeHooked then return end
     local success, MeleeModule = pcall(function()
         return require(LocalPlayer.PlayerScripts.Modules.ItemTypes.Melee)
     end)
     
     if success and MeleeModule then
-        getgenv().BanknoteMeleeHooked = true
         getgenv().CombatMods.MeleeModule = MeleeModule
         
         if MeleeModule.StartShooting then
@@ -8211,14 +8215,7 @@ local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
 
 local fonts = {}
-fonts.main = getgenv().InstanceUIFont or Font.new("rbxasset://fonts/families/GothamSSm.json")
--- $$ banknote $$: ensure fonts.main is a Font object (FontFace can't take an EnumItem)
-if typeof(fonts.main) ~= "Font" then
-    local ok, f = pcall(function()
-        return Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
-    end)
-    fonts.main = (ok and f) or Font.new("rbxasset://fonts/families/GothamSSm.json")
-end
+fonts.main = getgenv().InstanceUIFont or Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Black)
 
 local hitEffectsTab = HitGroup:AddTab('hit effects')
 
@@ -8390,7 +8387,7 @@ local function spawnHitFlash(targetPart, color, brightness, range, duration)
 end
 
 local function spawnHitEmitter(targetPart, config)
-    if getActiveParticles and MAX_ACTIVE_PARTICLES and getActiveParticles() >= MAX_ACTIVE_PARTICLES then
+    if getActiveParticles() >= MAX_ACTIVE_PARTICLES then
         return nil
     end
 
@@ -11869,13 +11866,6 @@ end
 
 runsvc:BindToRenderStep("vfr_csync", Enum.RenderPriority.First.Value, function()
     if not vfrSnap.cf then return end
-    -- $$ banknote $$ safety: only force the CFrame while void/ragebot is actually
-    -- active. Otherwise clear the stale snap so a leftover saved position can't
-    -- freeze or teleport the character every frame.
-    if not (config.voidspam.enabled or config.state.csyncactive) then
-        vfrSnap.cf, vfrSnap.lv, vfrSnap.av = nil, nil, nil
-        return
-    end
     local hrp = voidHrp()
     if not hrp then return end
     pcall(function()
@@ -12285,10 +12275,6 @@ local function bindvulnerable(callback)
 end
 
 runsvc.Heartbeat:Connect(function()
-    -- $$ banknote $$ perf: only scan immunity when ragebot is active
-    if not (config.target.rageMasterOn or config.target.auto or config.target.enabled) then
-        return
-    end
     for _, plr in pairs(players:GetPlayers()) do
         if plr == player then continue end
         local char = plr.Character
@@ -12504,11 +12490,6 @@ runsvc.RenderStepped:Connect(function()
 end)
 
 runsvc.Heartbeat:Connect(function()
-    -- $$ banknote $$ perf: skip heavy ragebot bookkeeping when ragebot is idle
-    if not (config.target.rageMasterOn or config.target.auto or config.target.enabled
-        or config.voidspam.enabled or config.state.csyncactive) then
-        return
-    end
     fflag()
     updatesling()
     tickAmmo()
@@ -15267,16 +15248,6 @@ local function flushAntiAimMovementState()
     if hrp then
         pcall(function()
             hrp.AssemblyAngularVelocity = Vector3.zero
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            -- $$ banknote $$: un-tilt the character (anti-aim leaves accumulated
-            -- pitch/roll which makes you appear taller / shifts your hitbox)
-            local pos = hrp.Position
-            local look = hrp.CFrame.LookVector
-            local flat = Vector3.new(look.X, 0, look.Z)
-            if flat.Magnitude < 1e-3 then
-                flat = Vector3.new(0, 0, -1)
-            end
-            hrp.CFrame = CFrame.lookAt(pos, pos + flat.Unit)
         end)
     end
 end
@@ -17544,7 +17515,7 @@ local function drawhealthbar(player, box, hum, size, position, dt)
 end
 
 local function drawbox(player, box, size, position)
-    if not ConfigBox.MasterEnabled then
+    if not (ConfigBox.MasterEnabled and ConfigBox.Enable) then
         box.box.square.Visible = false
         box.box.outline.Visible = false
         box.box.inline.Visible = false
@@ -17660,11 +17631,9 @@ local function drawtracers(player, box, root)
     if vis then
         box.Tracer.Visible = true
         box.Tracer.To = Vector2.new(pos.X, pos.Y)
-        -- compute the tracer origin directly from the viewport so it never
-        -- depends on a possibly-nil screen-anchor helper.
-        local vp = (workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize) or Vector2.new(1920, 1080)
-        local fromBottom = (_G.Config.Tracers.FromBottom == nil or _G.Config.Tracers.FromBottom)
-        box.Tracer.From = fromBottom and Vector2.new(vp.X * 0.5, vp.Y) or Vector2.new(vp.X * 0.5, vp.Y * 0.5)
+        box.Tracer.From = (_G.Config.Tracers.FromBottom == nil or _G.Config.Tracers.FromBottom)
+            and espScreenAnchor(0.5, 1)
+            or espScreenAnchor(0.5, 0.5)
         box.Tracer.Color = lerpcolor(_G.Config.Tracers.Color or Color3.fromRGB(255, 255, 255), _G.Config.Tracers.Color2 or _G.Config.Tracers.Color or Color3.fromRGB(255, 255, 255), 0.5)
         box.Tracer.Thickness = _G.Config.Tracers.Thickness or 1
     else
@@ -17829,9 +17798,14 @@ local function stepEspUpdate(dt)
     end
 end
 
--- ESP render disabled (ESP removed from Rivals). stepEspUpdate is not bound.
-local espBindOk = true
-pcall(function() RunService:UnbindFromRenderStep(ESP_RENDER_BIND) end)
+local espBindOk = pcall(function()
+    RunService:UnbindFromRenderStep(ESP_RENDER_BIND)
+    RunService:BindToRenderStep(ESP_RENDER_BIND, Enum.RenderPriority.Camera.Value + 1, stepEspUpdate)
+end)
+
+if not espBindOk then
+    RunService.RenderStepped:Connect(stepEspUpdate)
+end
 
 for _, player in ipairs(Players:GetPlayers()) do
     if player ~= LocalPlayer then
@@ -17847,10 +17821,7 @@ end)
 
 Players.PlayerRemoving:Connect(RemoveBox)
 
--- ESP removed from Rivals (user will add their own ESP library). Replace the
--- "esp" groupbox with a no-op sink: none of the ESP UI is built, all ESP
--- config flags stay disabled, so the render loop draws nothing.
-local v67; v67 = setmetatable({}, { __index = function() return function() return v67 end end })
+local v67 = Tabs.Visuals:AddLeftGroupbox("esp")
 
 v67:AddToggle('box_enabled', {
     Text = 'enable',

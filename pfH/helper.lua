@@ -2930,7 +2930,7 @@ LPH_JIT_MAX(function() -- Main Cheat
     --astar.interval = 12  --  8 to 16 is good
     --astar.ignorelist = {workspace.Players, camera, ignore, hitboxObjects, backtrackObjects}
 
-    local pathfinding = loadstring(game:HttpGet("https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/pfH/pathfinding.lua"))() -- pathfinding module (self-hosted)
+    local pathfinding = nil -- knifebot removed; pathfinding no longer fetched
 
     local physicsignore = {workspace.Terrain, ignore, workspace.Players, camera, hitboxObjects, backtrackObjects}
     local raycastparameters = RaycastParams.new()
@@ -3246,6 +3246,14 @@ LPH_JIT_MAX(function() -- Main Cheat
                     local newTarget = baseTarget + (targetVel * hitTime)
 
                     if bulletcheck(newOrigin, newTarget, velocity, accel, penetration, raycastStep) then
+                        return newOrigin, newTarget, velocity, hitTime
+                    end
+
+                    -- Extended range: bulletcheck's bullet sim is conservative on
+                    -- range/penetration and rejects far shots the server would
+                    -- actually accept. If there's a clear line of sight to the
+                    -- target, fire anyway so the ragebot reaches farther.
+                    if not raycast(newOrigin, newTarget - newOrigin, physicsignore) then
                         return newOrigin, newTarget, velocity, hitTime
                     end
                 end
@@ -5151,7 +5159,9 @@ LPH_JIT_MAX(function() -- Main Cheat
         return ok and friendly == true
     end
 
-    espInterface.Load()
+    -- ESP removed from banknote (user will supply their own ESP library).
+    -- espInterface.Load() not called so no ESP render loop runs.
+    -- espInterface.Load()
 
     callbackList["Enemy ESP%%Enabled"] = function(state)
         espInterface.teamSettings.enemy.enabled = state

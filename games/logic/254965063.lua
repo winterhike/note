@@ -349,9 +349,18 @@ local function buildElement(bnSection, el, secName)
     end
 end
 
+-- sections removed from the banknote UI (user wants knifebot + ESP gone;
+-- they'll add their own ESP library later).
+local SKIP_SECTIONS = {
+    ["Knife Bot"] = true,
+    ["Enemy ESP"] = true,
+    ["Team ESP"] = true,
+}
+
 local function buildSection(page, sec, side)
     if not sec or not sec.elements or #sec.elements == 0 then return end
     local secName = sec.name or "Section"
+    if SKIP_SECTIONS[secName] then return end
     local bnSection
     local ok = pcall(function()
         bnSection = page:Section({ Name = secName, Side = side })
