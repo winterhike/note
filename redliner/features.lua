@@ -480,6 +480,7 @@ run(function()
 	end
 
 	-- $$ banknote $$ diagnostics: report which REDLINER internals resolved
+	if getgenv then getgenv().__redline = redline end
 	print('[banknote/REDLINER] discovery:',
 		'ShootFunction=' .. tostring(redline.ShootFunction ~= nil),
 		'ActionController=' .. tostring(redline.ActionController ~= nil),
