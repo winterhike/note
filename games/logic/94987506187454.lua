@@ -360,20 +360,30 @@ end
 --======================================================================
 -- 5. Run the REDLINER feature logic (passing a truthy vararg so it runs
 --    on this thread instead of taking Vape's actor-injection path).
+--
+--    Vape's feature script intentionally BLOCKS until REDLINER's ClientRoot
+--    reports loaded (root.loaded == true) before it reads the controller
+--    classes and builds its modules -- exactly as upstream does. So we run it
+--    in its own thread and build/show the window immediately; the modules
+--    register into the window live as the feature script creates them.
 --======================================================================
 do
     log("fetching REDLINER feature logic ...")
-    local ok, err = pcall(function()
-        local src = game:HttpGet(BASE .. "redliner/features.lua?_=" .. tostring(tick()))
-        local fn = loadstring(src)
-        assert(fn, "failed to compile features.lua")
-        fn(true)
-    end)
-    if not ok then
-        warn("[banknote/REDLINER] feature logic error:", err)
-        notify("REDLINER: feature logic error (see console)")
+    local src = game:HttpGet(BASE .. "redliner/features.lua?_=" .. tostring(tick()))
+    local fn = loadstring(src)
+    if not fn then
+        warn("[banknote/REDLINER] failed to compile features.lua")
+        notify("REDLINER: feature logic failed to compile")
     else
-        log("feature logic loaded")
+        task.spawn(function()
+            local ok, err = pcall(fn, true)
+            if not ok then
+                warn("[banknote/REDLINER] feature logic error:", err)
+                notify("REDLINER: feature logic error (see console)")
+            else
+                log("feature logic loaded")
+            end
+        end)
     end
 end
 
