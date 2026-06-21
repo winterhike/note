@@ -130,25 +130,31 @@ local function Feature(category, name, onLocal)
 
     function self:Slider(d)
         setOpt(name, d.Opt, d.Default or d.Min or 0)
+        local obj
         pcall(function()
-            section:Slider({ Name = d.Name, Flag = uflag(), Min = d.Min or 0, Max = d.Max or 100, Default = d.Default or d.Min or 0,
+            obj = section:Slider({ Name = d.Name, Flag = uflag(), Min = d.Min or 0, Max = d.Max or 100, Default = d.Default or d.Min or 0,
                 Decimals = (d.Decimal and d.Decimal > 0) and (1 / d.Decimal) or 1, Suffix = type(d.Suffix) == "string" and d.Suffix or "",
                 Callback = function(val) setOpt(name, d.Opt, val) end })
         end)
+        return obj
     end
     function self:Toggle(d)
         setOpt(name, d.Opt, d.Default or false)
+        local obj
         pcall(function()
-            section:Toggle({ Name = d.Name, Flag = uflag(), Default = d.Default or false,
+            obj = section:Toggle({ Name = d.Name, Flag = uflag(), Default = d.Default or false,
                 Callback = function(v) setOpt(name, d.Opt, v) end })
         end)
+        return obj
     end
     function self:Dropdown(d)
         setOpt(name, d.Opt, d.Default)
+        local obj
         pcall(function()
-            section:Dropdown({ Name = d.Name, Flag = uflag(), Items = d.Items or {}, Default = d.Default, Multi = false,
-                Callback = function(v) setOpt(name, d.Opt, v) end })
+            obj = section:Dropdown({ Name = d.Name, Flag = uflag(), Items = d.Items or {}, Default = d.Default, Multi = false,
+                Callback = function(v) setOpt(name, d.Opt, v) if d.OnChange then pcall(d.OnChange, v) end end })
         end)
+        return obj
     end
     function self:Targets(d)
         d = d or {}
@@ -204,15 +210,23 @@ do
 
     local TS = Feature("Blatant", "TargetStrafe")
     TS:Targets({ Players = true, Walls = true })
-    TS:Dropdown({ Name = "Version", Opt = "Version", Items = { "v1", "v2" }, Default = "v1" })
+    local v2elems = {}
+    local function setV2Visible(show)
+        for _, e in pairs(v2elems) do
+            if e and e.SetVisibility then pcall(function() e:SetVisibility(show) end) end
+        end
+    end
+    TS:Dropdown({ Name = "Version", Opt = "Version", Items = { "v1", "v2" }, Default = "v1",
+        OnChange = function(val) setV2Visible(val == "v2") end })
     TS:Slider({ Name = "Search Range", Opt = "SearchRange", Min = 1, Max = 30, Default = 24, Suffix = "m" })
     TS:Slider({ Name = "Strafe Range", Opt = "StrafeRange", Min = 1, Max = 30, Default = 18, Suffix = "m" })
     TS:Slider({ Name = "Y Factor", Opt = "YFactor", Min = 0, Max = 100, Default = 100, Suffix = "%" })
-    -- v2-only options (ignored by v1)
-    TS:Toggle({ Name = "Sticky (v2)", Opt = "Sticky", Default = false })
-    TS:Slider({ Name = "Orbit Speed (v2)", Opt = "Speed", Min = 1, Max = 150, Default = 60, Suffix = "m" })
-    TS:Slider({ Name = "Rotation Speed (v2)", Opt = "RotationSpeed", Min = 1, Max = 40, Default = 12 })
-    TS:Slider({ Name = "Prediction (v2)", Opt = "Prediction", Min = 0, Max = 1, Decimal = 100, Default = 0 })
+    -- v2-only options (shown only when Version == v2)
+    v2elems.sticky = TS:Toggle({ Name = "Sticky (v2)", Opt = "Sticky", Default = false })
+    v2elems.orbit  = TS:Slider({ Name = "Orbit Speed (v2)", Opt = "Speed", Min = 1, Max = 150, Default = 60, Suffix = "m" })
+    v2elems.rot    = TS:Slider({ Name = "Rotation Speed (v2)", Opt = "RotationSpeed", Min = 1, Max = 40, Default = 12 })
+    v2elems.pred   = TS:Slider({ Name = "Prediction (v2)", Opt = "Prediction", Min = 0, Max = 1, Decimal = 100, Default = 0 })
+    setV2Visible(false) -- hidden by default (v1 selected)
 end
 -- Utility
 do
