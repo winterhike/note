@@ -511,6 +511,22 @@ do
 
     local lockedTarget  -- for the "First Target" priority
 
+    -- REDLINER keeps health at Players.<name>.ReadOnly.health (a value object),
+    -- NOT on the Humanoid, so read it from there.
+    local function getHealth(ent)
+        local plr = ent and ent.Player
+        if plr then
+            local hv = plr:FindFirstChild('health', true)
+            if hv and hv:IsA('ValueBase') then return hv.Value end
+            local a = plr:GetAttribute('health')
+            if type(a) == 'number' then return a end
+        end
+        return ent and ent.Health or 0
+    end
+    local function isAliveEnt(ent)
+        return ent and table.find(entitylib.List, ent) ~= nil and ent.RootPart ~= nil and getHealth(ent) > 0
+    end
+
     -- v2 target selection honouring the Priority dropdown
     local function pickTargetV2()
         local players = Opt('TargetStrafe', 'Players', true)
@@ -520,19 +536,18 @@ do
 
         if priority == 'First Target' then
             -- keep the locked target until it dies / leaves, then re-acquire
-            if lockedTarget and table.find(entitylib.List, lockedTarget) and lockedTarget.RootPart and lockedTarget.Health > 0 then
-                return lockedTarget
-            end
+            if isAliveEnt(lockedTarget) then return lockedTarget end
             lockedTarget = entitylib.EntityPosition({ Range = range, Part = 'RootPart', Players = players, NPCs = npcs })
             return lockedTarget
         elseif priority == 'Lowest HP' then
             local best, bestHp
             local myPos = entitylib.character.RootPart.Position
             for _, ent in entitylib.List do
-                if ent.RootPart and (ent.Health or 0) > 0 and ent.Targetable ~= false
+                if ent.RootPart and ent.Targetable ~= false
                     and ((players and ent.Player) or (npcs and ent.NPC)) then
-                    if (ent.RootPart.Position - myPos).Magnitude <= range then
-                        if not bestHp or ent.Health < bestHp then best, bestHp = ent, ent.Health end
+                    local hp = getHealth(ent)
+                    if hp > 0 and (ent.RootPart.Position - myPos).Magnitude <= range then
+                        if not bestHp or hp < bestHp then best, bestHp = ent, hp end
                     end
                 end
             end
