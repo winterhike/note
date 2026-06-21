@@ -5076,29 +5076,59 @@ LPH_JIT_MAX(function() -- Main Cheat
 
     espInterface.getCharacter = LPH_NO_VIRTUALIZE(function(player)
         local playerReplicationObject = replicationInterface.getEntry(player)
-        local thirdPerson = playerReplicationObject:isReady() and playerReplicationObject._smoothReplication._prevFrameTime and playerReplicationObject and playerReplicationObject:getThirdPersonObject()
-        return thirdPerson and thirdPerson:getCharacterModel(), thirdPerson and thirdPerson:getRootPart()
+        if not (playerReplicationObject and playerReplicationObject:isReady()) then
+            return nil
+        end
+        local thirdPerson = playerReplicationObject:getThirdPersonObject()
+        if not thirdPerson then
+            return nil
+        end
+        local model = thirdPerson:getCharacterModel()
+        if not model then
+            return nil
+        end
+        -- PF rig parts aren't named Head/Torso/etc by default, which the ESP
+        -- (sense) library requires (findFirstChild "Head" + isBodyPart names).
+        -- Normalize names on-demand so ESP works for every player, including
+        -- those who spawned after load. (Names only; sizes left untouched.)
+        pcall(function()
+            if thirdPerson._rootPart and thirdPerson._rootPart.Name ~= "HumanoidRootPart" then
+                thirdPerson._rootPart.Name = "HumanoidRootPart"
+            end
+            for partName, part in thirdPerson:getCharacterHash() do
+                if part and part.Name ~= partName then
+                    part.Name = partName
+                end
+            end
+        end)
+        return model, thirdPerson:getRootPart()
     end)
 
     espInterface.getHealth = LPH_NO_VIRTUALIZE(function(player, character)
-        local playerReplicationObject = replicationInterface.getEntry(player)
-        return playerReplicationObject:getHealth(), 100
+        local ok, hp = pcall(function()
+            local repObj = replicationInterface.getEntry(player)
+            return repObj and repObj:getHealth()
+        end)
+        return (ok and hp) or 100, 100
     end)
 
     espInterface.getWeapon = LPH_NO_VIRTUALIZE(function(player)
-        local playerReplicationObject = replicationInterface.getEntry(player)
-        local playerWeaponObject = playerReplicationObject:getWeaponObject()
-
-        if playerReplicationObject:isAlive() and playerWeaponObject then
-            return playerWeaponObject.weaponName
-        end
-
-        return "Unknown"
+        local ok, name = pcall(function()
+            local repObj = replicationInterface.getEntry(player)
+            local weaponObj = repObj and repObj:getWeaponObject()
+            if repObj and repObj:isAlive() and weaponObj then
+                return weaponObj.weaponName
+            end
+        end)
+        return (ok and name) or "Unknown"
     end)
 
     espInterface.isFriendly = function(player)
-        local playerReplicationObject = replicationInterface.getEntry(player)
-        return not playerReplicationObject._isEnemy
+        local ok, friendly = pcall(function()
+            local repObj = replicationInterface.getEntry(player)
+            return repObj and repObj._isEnemy == false
+        end)
+        return ok and friendly == true
     end
 
     espInterface.Load()
