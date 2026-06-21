@@ -27,7 +27,12 @@ local function downloadFile(path, func)
 	return (func or readfile)(path)
 end
 local run = function(func)
-	func()
+	-- $$ banknote $$: isolate each feature block so one failure (e.g. a
+	-- discovery mismatch) can't stop the remaining modules from building.
+	local ok, err = pcall(func)
+	if not ok then
+		warn('[banknote/REDLINER] block error: '..tostring(err))
+	end
 end
 local cloneref = cloneref or function(obj)
 	return obj
@@ -316,9 +321,11 @@ run(function()
 
 			root = require(v)
 			if not rawget(root, 'loaded') then
+				-- $$ banknote $$: timeout so a missing/renamed 'loaded' flag can't hang the load.
+				local deadline = tick() + 8
 				repeat
 					task.wait()
-				until rawget(root, 'loaded') or vape.Loaded == nil
+				until rawget(root, 'loaded') or vape.Loaded == nil or tick() > deadline
 			end
 
 			if vape.Loaded == nil then
@@ -328,7 +335,8 @@ run(function()
 	end
 
 	if not root then
-		lplr:Kick('Failed to find root class, please contact 7GrandDad on discord.')
+		-- $$ banknote $$: don't kick the player; just abort discovery.
+		warn('[banknote/REDLINER] failed to find ClientRoot (game may have updated)')
 		return
 	end
 

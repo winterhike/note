@@ -23,6 +23,20 @@ local RunService = game:GetService("RunService")
 local function log(...) print("[banknote/REDLINER]", ...) end
 local function notify(msg) pcall(function() BN:Notification(tostring(msg), 4) end) end
 
+-- pin fetches to the latest commit so edits aren't served stale by the CDN
+do
+    local ok, body = pcall(function()
+        return game:HttpGet("https://api.github.com/repos/endmylifehahahahahahahahaha/banknote-hub/commits/master")
+    end)
+    if ok and type(body) == "string" then
+        local sha = body:match('"sha"%s*:%s*"(%x+)"')
+        if sha then
+            BASE = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/" .. sha .. "/"
+            log("pinned to commit", sha:sub(1, 7))
+        end
+    end
+end
+
 --======================================================================
 -- 1. (no scratch files needed: the feature script's warning prompt and
 --    drawing download were removed, so nothing is written outside banknote.)
