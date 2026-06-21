@@ -16,6 +16,7 @@ local UNIVERSE_MAP = {
     ["113491250"]  = "254965063",   -- Phantom Forces (main universe / sub-places)
     ["104923451"]  = "254965063",   -- Phantom Forces (Console universe)
     ["7265339759"] = "94987506187454", -- REDLINER (all sub-places)
+    ["7304084567"] = "98129535207266", -- D.I.G (all sub-places)
 }
 
 -- Cache-buster so GitHub's raw CDN always serves the freshest files
