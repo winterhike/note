@@ -215,9 +215,42 @@ end)
 
 --======================================================================
 -- weapon-setting mods (RapidFire / NoSpread) + InfAmmo
+--
+-- Different guns are different GunLocal scripts with different upvalue/stack
+-- layouts (Infantry Rifle vs Pistol etc.), so we DON'T hardcode indices. We
+-- scan the fire frame's upvalues for the settings table (identified by its
+-- keys) and the ammo counter (the integer upvalue <= MaxAmmo).
 --======================================================================
 local origCache = setmetatable({}, { __mode = "k" })
-local function applyGunMods(gun, lvl)
+
+local function findGunUpvalues(lvl)
+    local settings, ammoIdx
+    for i = 1, 30 do
+        local ok, v = pcall(getupvalue, lvl, i)
+        if not ok then break end
+        if not settings and type(v) == "table"
+            and rawget(v, "Period") ~= nil and rawget(v, "Spread") ~= nil
+            and rawget(v, "BulletSpeed") ~= nil and rawget(v, "MaxAmmo") ~= nil then
+            settings = v
+        end
+    end
+    if not settings then return nil end
+    -- ammo: first integer upvalue within [0, MaxAmmo]
+    for i = 1, 30 do
+        local ok, v = pcall(getupvalue, lvl, i)
+        if not ok then break end
+        if type(v) == "number" and v == math.floor(v) and v >= 0 and v <= settings.MaxAmmo then
+            ammoIdx = i
+            break
+        end
+    end
+    return settings, ammoIdx
+end
+
+local function applyGunMods(lvl)
+    local gun, ammoIdx = findGunUpvalues(lvl)
+    if not gun then return end
+
     local o = origCache[gun]
     if not o then
         o = { Period = gun.Period, Spread = gun.Spread, MinSpread = gun.MinSpread, MaxSpread = gun.MaxSpread }
@@ -236,17 +269,16 @@ local function applyGunMods(gun, lvl)
         gun.Spread, gun.MinSpread, gun.MaxSpread = o.Spread, o.MinSpread, o.MaxSpread
     end
 
-    if FEAT.InfAmmo then
-        local ok, cur = pcall(getupvalue, lvl, 1)
-        if ok and type(cur) == "number" and type(gun.MaxAmmo) == "number" then
-            pcall(setupvalue, lvl, 1, gun.MaxAmmo)
-        end
+    if FEAT.InfAmmo and ammoIdx and type(gun.MaxAmmo) == "number" then
+        pcall(setupvalue, lvl, ammoIdx, gun.MaxAmmo)
     end
 end
 
 --======================================================================
--- (1) task.spawn hook: gun-stat mods + aim the bullet at the target. The
---     GunLocal fire frame level is found dynamically (it was NOT 3).
+-- (1) task.spawn hook: applies the weapon-setting mods. The GunLocal fire
+--     frame level is found dynamically. NO getstack/setstack redirect - the
+--     bullet aim + hit are fully handled by the __namecall hooks below, and
+--     stack slots differ per gun (hardcoding them crashed Pistol/etc).
 --======================================================================
 local oldspawn
 oldspawn = hookfunction(task.spawn, newcclosure(function(a0, ...)
@@ -258,19 +290,7 @@ oldspawn = hookfunction(task.spawn, newcclosure(function(a0, ...)
         local ok, src = pcall(info, L, "s")
         if ok and type(src) == "string" and src:find("GunLocal") then lvl = L break end
     end
-    if not lvl then return oldspawn(a0, ...) end
-
-    local ok, gun = pcall(getupvalue, lvl, 12)
-    if ok and type(gun) == "table" then
-        pcall(applyGunMods, gun, lvl)
-
-        if (FEAT.SilentAim or FEAT.Ragebot) and cache.targetPart then
-            local origin = getstack(lvl, 12)
-            if typeof(origin) == "CFrame" then
-                setstack(lvl, 17, lookAt(origin.Position, cache.targetPart.Position))
-            end
-        end
-    end
+    if lvl then pcall(applyGunMods, lvl) end
 
     return oldspawn(a0, ...)
 end))
@@ -463,5 +483,9 @@ addToggle(weaponS, "Infinite Ammo", "InfAmmo")
 addToggle(weaponS, "Rapid Fire", "RapidFire")
 addSlider(weaponS, "Fire Rate", "RapidRPM", 60, 3000, 1200, 1, "rpm")
 addToggle(weaponS, "Snapline", "Snapline")
+
+-- finalize the window: this adds the default Settings tab (Theming, Profiles,
+-- Autoload, Menu). Without it only our Combat page shows.
+pcall(function() window:Init() end)
 
 log("loaded")
