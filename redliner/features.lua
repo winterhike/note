@@ -320,10 +320,13 @@ run(function()
 			end
 
 			root = require(v)
-			if not rawget(root, 'loaded') then
-				repeat
-					task.wait()
-				until rawget(root, 'loaded') or vape.Loaded == nil
+			-- Wait briefly for the game to init THIS instance. On executors whose
+			-- require cache is shared with the game this flips quickly; on ones
+			-- where it isn't (our case) it never does, so we cap the wait and fall
+			-- back to locating the game's real ClientRoot below.
+			local deadline = tick() + 5
+			while not rawget(root, 'loaded') and vape.Loaded ~= nil and tick() < deadline do
+				task.wait()
 			end
 
 			if vape.Loaded == nil then
@@ -338,7 +341,60 @@ run(function()
 		return
 	end
 
-	local classList = rawget(root, 'Classes') or {}
+	-- $$ banknote $$ -------------------------------------------------------
+	-- Vape reads controllers from `require(ClientRoot).Classes`, assuming the
+	-- executor's require cache is shared with the game so that table is the one
+	-- the game's bootstrap populated via Init(). On this executor it ISN'T:
+	-- require returns a fresh copy whose `loaded` stays false and `Classes`
+	-- stays empty forever -> every controller lookup is nil and nothing works.
+	--
+	-- The game's REAL ClientRoot still lives on the Lua heap, so resolve the
+	-- live Classes table dynamically: prefer our copy if it ever populates,
+	-- otherwise scan getgc for the populated one (loaded == true, non-empty
+	-- Classes). Cached once found; re-scanned (throttled) while still empty so
+	-- a lobby -> match transition is picked up automatically.
+	-----------------------------------------------------------------------
+	local function count(t)
+		if type(t) ~= 'table' then return 0 end
+		local n = 0
+		for _ in pairs(t) do n += 1 end
+		return n
+	end
+
+	local liveClasses = rawget(root, 'Classes')
+	local lastScan = 0
+	local function resolveClasses()
+		if count(liveClasses) > 0 then
+			return liveClasses
+		end
+		if type(getgc) ~= 'function' then
+			return liveClasses
+		end
+		if tick() - lastScan < 0.5 then
+			return liveClasses
+		end
+		lastScan = tick()
+		local best
+		for _, o in getgc(true) do
+			if type(o) == 'table' and o ~= root then
+				local ok, classes = pcall(function()
+					if type(rawget(o, 'Classes')) == 'table' and rawget(o, 'Init') ~= nil and rawget(o, 'Context') ~= nil then
+						return rawget(o, 'Classes')
+					end
+				end)
+				if ok and type(classes) == 'table' and count(classes) > 0 then
+					if rawget(o, 'loaded') == true then
+						liveClasses = classes
+						return liveClasses
+					end
+					best = best or classes
+				end
+			end
+		end
+		if best then liveClasses = best end
+		return liveClasses
+	end
+
 	redline = setmetatable({
 		AttackBox = require(replicatedStorage.Assets.ModuleScripts.Attack),
 		AttackCast = require(replicatedStorage.Assets.ModuleScripts.Attack.Hitbox),
@@ -349,7 +405,11 @@ run(function()
 		Teams = redline.Teams
 	}, {
 		__index = function(self, ind)
-			return rawget(classList, ind)
+			local classes = resolveClasses()
+			if type(classes) == 'table' then
+				return rawget(classes, ind)
+			end
+			return nil
 		end
 	})
 
@@ -920,7 +980,11 @@ run(function()
 							cooldown = os.clock() + 0.2
 	
 							task.spawn(function()
-								redline.ActionFunction(redline[redline.ActionController], 'PARRY').Pressed:Fire()
+								local ctrl = redline[redline.ActionController]
+								if ctrl and redline.ActionFunction then
+									local ok, act = pcall(redline.ActionFunction, ctrl, 'PARRY')
+									if ok and type(act) == 'table' and act.Pressed then act.Pressed:Fire() end
+								end
 							end)
 						end
 					end
@@ -1117,7 +1181,11 @@ run(function()
 							targetinfo.Targets[ent] = tick() + 1
 							if AutoSwing.Enabled then
 								task.spawn(function()
-									redline.ActionFunction(redline[redline.ActionController], 'MELEE').Pressed:Fire()
+									local ctrl = redline[redline.ActionController]
+									if ctrl and redline.ActionFunction then
+										local ok, act = pcall(redline.ActionFunction, ctrl, 'MELEE')
+										if ok and type(act) == 'table' and act.Pressed then act.Pressed:Fire() end
+									end
 								end)
 							end
 						end
