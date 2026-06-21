@@ -5116,13 +5116,146 @@ local Library = {
                         return
                     end
                     local page = getOrCreatePage(tostring(category))
+
+                    -- record the Sections this lua creates so we can destroy
+                    -- them on unload. Build may also RETURN a cleanup function.
+                    local sections = {}
+                    local prevSection = rawget(page, "Section")
+                    page.Section = function(self, params)
+                        local sec = Library.Section(self, params)
+                        pcall(function()
+                            if sec and sec.Items and sec.Items["Section"] then
+                                sections[#sections + 1] = sec.Items["Section"].Instance
+                            end
+                        end)
+                        return sec
+                    end
                     local okBuild, e = pcall(build, Library, page)
+                    page.Section = prevSection
+
                     if okBuild then
-                        loadedFiles[name] = true
+                        loadedFiles[name] = {
+                            path = path,
+                            category = tostring(category),
+                            sections = sections,
+                            cleanup = (type(e) == "function") and e or nil,
+                        }
                         Library:Notification("Loaded " .. name .. " -> " .. tostring(category) .. " tab", 4, Library.Theme.Accent)
                     else
                         Library:Notification("Build error in " .. name .. ": " .. tostring(e), 6, Color3.fromRGB(255, 0, 0))
                     end
+                end
+
+                local function unloadOne(name)
+                    local entry = loadedFiles[name]
+                    if not entry then
+                        Library:Notification(name .. " is not loaded", 3, Color3.fromRGB(255, 0, 0))
+                        return
+                    end
+                    if type(entry.cleanup) == "function" then pcall(entry.cleanup) end
+                    for _, inst in ipairs(entry.sections or {}) do
+                        pcall(function() inst:Destroy() end)
+                    end
+                    loadedFiles[name] = nil
+                    Library:Notification("Unloaded " .. name, 3, Library.Theme.Accent)
+                end
+
+                -- human-readable file size
+                local function sizeStr(path)
+                    local ok, data = pcall(readfile, path)
+                    if not ok or type(data) ~= "string" then return "?" end
+                    local b = #data
+                    if b >= 1048576 then return string.format("%.2f MB", b / 1048576)
+                    elseif b >= 1024 then return string.format("%.2f KB", b / 1024)
+                    else return b .. " B" end
+                end
+
+                local infoGui
+                local function showLoaded()
+                    local lines, count = {}, 0
+                    for n, entry in pairs(loadedFiles) do
+                        count = count + 1
+                        lines[#lines + 1] = "• " .. n .. ".lua   [" .. (entry.category or "?") .. "]"
+                        lines[#lines + 1] = "    path: " .. entry.path
+                        lines[#lines + 1] = "    size: " .. sizeStr(entry.path)
+                        lines[#lines + 1] = ""
+                    end
+                    if count == 0 then lines = { "No luas loaded." } end
+
+                    if infoGui then infoGui:Destroy() infoGui = nil end
+                    infoGui = Instance.new("ScreenGui")
+                    infoGui.Name = "BanknoteLuaInfo"
+                    infoGui.ResetOnSpawn = false
+                    infoGui.IgnoreGuiInset = true
+                    infoGui.DisplayOrder = 2000000
+                    infoGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+
+                    local frame = Instance.new("Frame")
+                    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+                    frame.Position = UDim2.fromScale(0.5, 0.5)
+                    frame.Size = UDim2.fromOffset(560, 380)
+                    frame.BackgroundColor3 = Library.Theme["Background"] or Color3.fromRGB(20, 22, 24)
+                    frame.BorderSizePixel = 0
+                    frame.Parent = infoGui
+                    local stroke = Instance.new("UIStroke")
+                    stroke.Color = Library.Theme["Accent"] or Color3.fromRGB(120, 180, 255)
+                    stroke.Thickness = 1
+                    stroke.Parent = frame
+
+                    local title = Instance.new("TextLabel")
+                    title.BackgroundTransparency = 1
+                    title.Size = UDim2.new(1, -20, 0, 28)
+                    title.Position = UDim2.fromOffset(12, 8)
+                    title.Font = Enum.Font.Code
+                    title.TextSize = 16
+                    title.TextXAlignment = Enum.TextXAlignment.Left
+                    title.TextColor3 = Library.Theme["Accent"] or Color3.fromRGB(120, 180, 255)
+                    title.Text = "Loaded Luas (" .. count .. ")  -  " .. LuasFolder
+                    title.TextTruncate = Enum.TextTruncate.AtEnd
+                    title.Parent = frame
+
+                    local scroll = Instance.new("ScrollingFrame")
+                    scroll.Position = UDim2.fromOffset(12, 40)
+                    scroll.Size = UDim2.new(1, -24, 1, -84)
+                    scroll.BackgroundTransparency = 1
+                    scroll.BorderSizePixel = 0
+                    scroll.ScrollBarThickness = 4
+                    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+                    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+                    scroll.Parent = frame
+
+                    local txt = Instance.new("TextLabel")
+                    txt.BackgroundTransparency = 1
+                    txt.Size = UDim2.new(1, 0, 0, 0)
+                    txt.AutomaticSize = Enum.AutomaticSize.Y
+                    txt.Font = Enum.Font.Code
+                    txt.TextSize = 13
+                    txt.TextWrapped = true
+                    txt.TextXAlignment = Enum.TextXAlignment.Left
+                    txt.TextYAlignment = Enum.TextYAlignment.Top
+                    txt.TextColor3 = Library.Theme["Text"] or Color3.fromRGB(235, 235, 235)
+                    txt.Text = table.concat(lines, "\n")
+                    txt.Parent = scroll
+
+                    local close = Instance.new("TextButton")
+                    close.AnchorPoint = Vector2.new(0.5, 1)
+                    close.Position = UDim2.new(0.5, 0, 1, -10)
+                    close.Size = UDim2.fromOffset(120, 26)
+                    close.BackgroundColor3 = Library.Theme["Inline"] or Color3.fromRGB(35, 38, 42)
+                    close.BorderSizePixel = 0
+                    close.AutoButtonColor = true
+                    close.Font = Enum.Font.Code
+                    close.TextSize = 14
+                    close.TextColor3 = Library.Theme["Text"] or Color3.fromRGB(235, 235, 235)
+                    close.Text = "Close"
+                    close.Parent = frame
+                    local cstroke = Instance.new("UIStroke")
+                    cstroke.Color = Color3.fromRGB(0, 0, 0)
+                    cstroke.Thickness = 1
+                    cstroke.Parent = close
+                    close.MouseButton1Click:Connect(function()
+                        if infoGui then infoGui:Destroy() infoGui = nil end
+                    end)
                 end
 
                 Section:Button({
@@ -5134,6 +5267,22 @@ local Library = {
                         end
                         for _, name in ipairs(selected) do loadOne(name) end
                     end
+                })
+
+                Section:Button({
+                    Name = "Unload selected",
+                    Callback = function()
+                        if not selected or #selected == 0 then
+                            Library:Notification("No luas selected", 3, Color3.fromRGB(255, 0, 0))
+                            return
+                        end
+                        for _, name in ipairs(selected) do unloadOne(name) end
+                    end
+                })
+
+                Section:Button({
+                    Name = "Show loaded luas",
+                    Callback = function() pcall(showLoaded) end
                 })
 
                 Section:Button({

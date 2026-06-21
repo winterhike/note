@@ -102,9 +102,16 @@ return {
         --==============================================================
         -- your feature logic
         --==============================================================
-        game:GetService("RunService").Heartbeat:Connect(function()
+        local conn = game:GetService("RunService").Heartbeat:Connect(function()
             if not enabled then return end
             -- do your thing using `speed`, `mode`, `color`, ...
         end)
+
+        -- OPTIONAL: return a cleanup function. "Unload selected" in the lua
+        -- tab destroys your UI automatically, and ALSO calls this so your
+        -- connections/loops stop. Without it, only the UI is removed.
+        return function()
+            conn:Disconnect()
+        end
     end
 }
