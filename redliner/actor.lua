@@ -317,11 +317,13 @@ do
     local old
     local function Hook(...)
         if debug.info(4, 's'):find('Gun') then
-            local ent = entitylib.EntityMouse({
-                Range = Opt('SilentAim', 'Range', 150), Part = 'RootPart',
-                Players = Opt('SilentAim', 'Players', true), NPCs = Opt('SilentAim', 'NPCs', false)
-            })
-            if ent then return CFrame.lookAt(camera.CFrame.Position, ent.Head.Position).LookVector end
+            if math.random(1, 100) <= Opt('SilentAim', 'HitChance', 85) then
+                local ent = entitylib.EntityMouse({
+                    Range = Opt('SilentAim', 'Range', 150), Part = 'RootPart',
+                    Players = Opt('SilentAim', 'Players', true), NPCs = Opt('SilentAim', 'NPCs', false)
+                })
+                if ent then return CFrame.lookAt(camera.CFrame.Position, ent.Head.Position).LookVector end
+            end
         end
         return old(...)
     end
@@ -491,7 +493,7 @@ do
                 local dir = (TargetStrafeVector or mc:getMoveDirection()) * Opt('Speed', 'Speed', 100)
                 local oldvel = mc[redline.VelocityName]
                 if Opt('Speed', 'AutoJump', false) and entitylib.isAlive and entitylib.character.Humanoid.FloorMaterial ~= Enum.Material.Air and dir.Magnitude > 0.01 then
-                    oldvel = Vector3.new(0, 40, 0)
+                    oldvel = Vector3.new(0, (Opt('Speed', 'CustomJump', false) and Opt('Speed', 'JumpPower', 30)) or 40, 0)
                 end
                 mc[redline.VelocityName] = Vector3.new(dir.X, oldvel.Y, dir.Z)
             end

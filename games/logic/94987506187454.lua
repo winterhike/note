@@ -110,7 +110,12 @@ local function Feature(category, name, onLocal)
     if self.toggle and self.toggle.Keybind then
         pcall(function()
             self.toggle:Keybind({ Name = name, Flag = uflag(), Mode = "Toggle",
-                Callback = function() setEnabled(not self.Enabled) if self.toggle.Set then pcall(function() self.toggle:Set(self.Enabled) end) end end })
+                -- use the value the keybind computes from its mode (Toggle/Hold/Always);
+                -- do NOT flip independently or Hold/Always break.
+                Callback = function(toggled)
+                    setEnabled(toggled and true or false)
+                    if self.toggle.Set then pcall(function() self.toggle:Set(self.Enabled) end) end
+                end })
         end)
     end
 
@@ -170,6 +175,7 @@ do
     local SA = Feature("Combat", "SilentAim")
     SA:Targets({ Players = true })
     SA:Slider({ Name = "Range", Opt = "Range", Min = 1, Max = 1000, Default = 150, Suffix = "m" })
+    SA:Slider({ Name = "Hit Chance", Opt = "HitChance", Min = 0, Max = 100, Default = 85, Suffix = "%" })
 end
 -- Blatant
 do
@@ -193,6 +199,8 @@ do
     local SP = Feature("Blatant", "Speed")
     SP:Slider({ Name = "Speed", Opt = "Speed", Min = 1, Max = 150, Default = 100, Suffix = "m" })
     SP:Toggle({ Name = "AutoJump", Opt = "AutoJump", Default = false })
+    SP:Toggle({ Name = "Custom Jump", Opt = "CustomJump", Default = false })
+    SP:Slider({ Name = "Jump Power", Opt = "JumpPower", Min = 1, Max = 50, Default = 30 })
 
     local TS = Feature("Blatant", "TargetStrafe")
     TS:Targets({ Players = true, Walls = true })
@@ -205,6 +213,25 @@ do
     local AQ = Feature("Utility", "AutoQueue")
     local queueList = { "Duels1v1", "Ranked1v1", "FFA", "Duels2v2" }
     AQ:Dropdown({ Name = "Mode", Opt = "Mode", Items = queueList, Default = "Duels1v1" })
+
+    local AL = Feature("Utility", "AutoLeave", function(self, on)
+        if not on then return end
+        local fired = false
+        self:Clean(RunService.Heartbeat:Connect(function()
+            if fired then return end
+            local pg = lplr:FindFirstChild("PlayerGui")
+            if not pg then return end
+            for _, d in pg:GetDescendants() do
+                if (d:IsA("TextButton") or d:IsA("ImageButton")) and d.Name:lower():find("return") and d.Visible then
+                    fired = true
+                    task.wait(bridge:GetAttribute("AutoLeave_Delay") or 1)
+                    pcall(function() firesignal(d.MouseButton1Click) end)
+                    break
+                end
+            end
+        end))
+    end)
+    AL:Slider({ Name = "Delay", Opt = "Delay", Min = 0, Max = 5, Default = 1, Decimal = 10, Suffix = "s" })
 
     Feature("Utility", "Phase")
 
@@ -242,6 +269,19 @@ do
 end
 
 pcall(function() window:Init() end)
+
+-- $$ banknote $$: clean first run. Library:Init auto-applies autoload.json, and
+-- our per-run flags are randomized so a stale config maps onto the wrong toggles.
+-- Force every feature OFF after the UI is built so nothing comes pre-enabled.
+task.defer(function()
+    for _, m in pairs(features) do
+        if type(m) == "table" and m.setEnabled then
+            pcall(function() m.setEnabled(false) end)
+            if m.toggle and m.toggle.Set then pcall(function() m.toggle:Set(false) end) end
+        end
+        if type(m) == "table" then pcall(function() bridge:SetAttribute(m.Name, false) end) end
+    end
+end)
 
 --======================================================================
 -- spawn the actor runtime (where REDLINER's controllers actually live)
