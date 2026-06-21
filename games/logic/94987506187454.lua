@@ -222,6 +222,7 @@ do
     TS:Slider({ Name = "Strafe Range", Opt = "StrafeRange", Min = 1, Max = 30, Default = 18, Suffix = "m" })
     TS:Slider({ Name = "Y Factor", Opt = "YFactor", Min = 0, Max = 100, Default = 100, Suffix = "%" })
     -- v2-only options (shown only when Version == v2)
+    v2elems.priority = TS:Dropdown({ Name = "Priority (v2)", Opt = "Priority", Items = { "Closest Distance", "Lowest HP", "First Target" }, Default = "Closest Distance" })
     v2elems.sticky = TS:Toggle({ Name = "Sticky (v2)", Opt = "Sticky", Default = false })
     v2elems.orbit  = TS:Slider({ Name = "Orbit Speed (v2)", Opt = "Speed", Min = 1, Max = 150, Default = 60, Suffix = "m" })
     v2elems.rot    = TS:Slider({ Name = "Rotation Speed (v2)", Opt = "RotationSpeed", Min = 1, Max = 40, Default = 12 })

@@ -509,6 +509,39 @@ do
     pcall(function() rayCheck.FilterDescendantsInstances = { workspace.Map } end)
     rayCheck.FilterType = Enum.RaycastFilterType.Include
 
+    local lockedTarget  -- for the "First Target" priority
+
+    -- v2 target selection honouring the Priority dropdown
+    local function pickTargetV2()
+        local players = Opt('TargetStrafe', 'Players', true)
+        local npcs    = Opt('TargetStrafe', 'NPCs', false)
+        local range   = Opt('TargetStrafe', 'SearchRange', 24)
+        local priority = Opt('TargetStrafe', 'Priority', 'Closest Distance')
+
+        if priority == 'First Target' then
+            -- keep the locked target until it dies / leaves, then re-acquire
+            if lockedTarget and table.find(entitylib.List, lockedTarget) and lockedTarget.RootPart and lockedTarget.Health > 0 then
+                return lockedTarget
+            end
+            lockedTarget = entitylib.EntityPosition({ Range = range, Part = 'RootPart', Players = players, NPCs = npcs })
+            return lockedTarget
+        elseif priority == 'Lowest HP' then
+            local best, bestHp
+            local myPos = entitylib.character.RootPart.Position
+            for _, ent in entitylib.List do
+                if ent.RootPart and (ent.Health or 0) > 0 and ent.Targetable ~= false
+                    and ((players and ent.Player) or (npcs and ent.NPC)) then
+                    if (ent.RootPart.Position - myPos).Magnitude <= range then
+                        if not bestHp or ent.Health < bestHp then best, bestHp = ent, ent.Health end
+                    end
+                end
+            end
+            return best
+        else -- Closest Distance (default)
+            return entitylib.EntityPosition({ Range = range, Part = 'RootPart', Players = players, NPCs = npcs })
+        end
+    end
+
     -- v1: original Vape behaviour. Sets the horizontal TargetStrafeVector; you
     -- still need Speed/Fly enabled to actually move.
     local function strafeV1(ang, oldent)
@@ -551,10 +584,7 @@ do
         if not (mc and typeof(mc[redline.VelocityName]) == 'Vector3' and entitylib.isAlive) then
             TargetStrafeVector = nil strafeDriving = false return ang, nil
         end
-        local ent = not UserInputService:IsKeyDown(Enum.KeyCode.S) and entitylib.EntityPosition({
-            Range = Opt('TargetStrafe', 'SearchRange', 24), Part = 'RootPart',
-            Players = Opt('TargetStrafe', 'Players', true), NPCs = Opt('TargetStrafe', 'NPCs', false)
-        })
+        local ent = (not UserInputService:IsKeyDown(Enum.KeyCode.S)) and pickTargetV2()
         if not ent then TargetStrafeVector = nil strafeDriving = false return ang, nil end
 
         local root  = entitylib.character.RootPart
@@ -607,7 +637,7 @@ do
                 ang, oldent = strafeV1(ang, oldent)
             end
         end))
-    end, function() TargetStrafeVector = nil strafeDriving = false end)
+    end, function() TargetStrafeVector = nil strafeDriving = false lockedTarget = nil end)
 end
 
 -- AutoQueue ------------------------------------------------------------
