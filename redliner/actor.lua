@@ -694,4 +694,62 @@ do
     end)
 end
 
+-- RageBot --------------------------------------------------------------
+-- Auto-kills everyone: injects EVERY alive entity's hurtbox into each melee
+-- scan (so one swing hits all targets in range) and swings continuously.
+do
+    local Overlay = OverlapParams.new()
+    Overlay.FilterType = Enum.RaycastFilterType.Include
+    Overlay.RespectCanCollide = false
+    bindFeature('RageBot', function(self)
+        HitboxHook:Add('RageBot', function(results)
+            if type(results[1]) ~= 'table' then return end
+            local range  = Opt('RageBot', 'Range', 200)
+            local origin = entitylib.isAlive and entitylib.character.RootPart.Position or Vector3.zero
+            Overlay.FilterDescendantsInstances = CollectionService:GetTagged('Hurtbox')
+            for _, ent in entitylib.List do
+                if ent.RootPart and (ent.Player or ent.NPC) and ent.Targetable ~= false then
+                    if (ent.RootPart.Position - origin).Magnitude <= range then
+                        for _, p in workspace:GetPartBoundsInRadius(ent.RootPart.Position, 6, Overlay) do
+                            table.insert(results[1], p)
+                        end
+                    end
+                end
+            end
+        end, 0)
+        while self.Enabled do
+            task.spawn(fireAction, 'MELEE')
+            task.wait(Opt('RageBot', 'SwingDelay', 0.1))
+        end
+    end, function() HitboxHook:Remove('RageBot') end)
+end
+
+-- GrapplerCooldown -----------------------------------------------------
+-- Customise the grapple (AUGMENT) cooldown. 0 = no cooldown (clears the gate
+-- instantly), 1 = regular. In between scales the wait (value * cap seconds);
+-- we only ever clear EARLY, never extend, so 1 leaves the real cooldown intact.
+do
+    local CAP = 5
+    bindFeature('GrapplerCooldown', function(self)
+        local blockStart
+        self:Clean(RunService.Heartbeat:Connect(function()
+            local ctrl = redline[redline.ActionController]
+            if not ctrl or not redline.ActionFunction then return end
+            local ok, act = pcall(redline.ActionFunction, ctrl, 'AUGMENT')
+            if not ok or type(act) ~= 'table' then return end
+            local value = Opt('GrapplerCooldown', 'Cooldown', 1)
+            local blocked = (act.Enabled == false) or (next(act.Blockers) ~= nil)
+            if blocked then
+                blockStart = blockStart or tick()
+                if (tick() - blockStart) >= (value * CAP) then
+                    pcall(function() table.clear(act.Blockers) end)
+                    act.Enabled = true
+                end
+            else
+                blockStart = nil
+            end
+        end))
+    end)
+end
+
 report("loaded")

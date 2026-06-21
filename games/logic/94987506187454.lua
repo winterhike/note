@@ -182,11 +182,18 @@ do
     SA:Targets({ Players = true })
     SA:Slider({ Name = "Range", Opt = "Range", Min = 1, Max = 1000, Default = 150, Suffix = "m" })
     SA:Slider({ Name = "Hit Chance", Opt = "HitChance", Min = 0, Max = 100, Default = 85, Suffix = "%" })
+
+    local RB = Feature("Combat", "RageBot")
+    RB:Slider({ Name = "Range", Opt = "Range", Min = 1, Max = 1000, Default = 200, Suffix = "m" })
+    RB:Slider({ Name = "Swing Delay", Opt = "SwingDelay", Min = 0.05, Max = 1, Decimal = 100, Default = 0.1, Suffix = "s" })
 end
 -- Blatant
 do
     local AS = Feature("Blatant", "AlwaysStun")
     AS:Slider({ Name = "Spoof value", Opt = "Spoof", Min = 300, Max = 800, Default = 800, Suffix = "sps" })
+
+    local GC = Feature("Blatant", "GrapplerCooldown")
+    GC:Slider({ Name = "Cooldown", Opt = "Cooldown", Min = 0, Max = 1, Decimal = 100, Default = 1 })
 
     Feature("Blatant", "AntiParry")
     Feature("Blatant", "AutoParry")
@@ -365,7 +372,7 @@ local function unloadAll()
     end
     -- stop every actor feature, then tear down the bridge
     pcall(function()
-        for _, name in ipairs({ "KillAura","SilentAim","AlwaysStun","AntiParry","AutoParry","Fly","HighJump","LongJump","Speed","TargetStrafe","AutoQueue","Phase" }) do
+        for _, name in ipairs({ "KillAura","SilentAim","RageBot","AlwaysStun","GrapplerCooldown","AntiParry","AutoParry","Fly","HighJump","LongJump","Speed","TargetStrafe","AutoQueue","Phase" }) do
             bridge:SetAttribute(name, false)
         end
     end)
