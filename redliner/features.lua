@@ -56,7 +56,7 @@ local entitylib = vape.Libraries.entity
 local targetinfo = vape.Libraries.targetinfo
 local sessioninfo = vape.Libraries.sessioninfo
 local whitelist = vape.Libraries.whitelist
-local drawingactor = loadstring(downloadFile('newvape/libraries/drawing.lua'), 'drawing')(...)
+local drawingactor = 0 -- $$ banknote $$: actor-path drawing not used; no newvape fetch
 local redline = {Teams = {}}
 local starttime = os.clock()
 local TargetStrafeVector
@@ -94,35 +94,8 @@ local function notif(...)
 end
 
 local function warningRoutine(hash)
-	local path = 'newvape/profiles/agreementhash.txt'
-	if (isfile(path) and readfile(path) or '') ~= hash then
-		local box = Instance.new('TextLabel')
-		box.Size = UDim2.fromScale(1, 1)
-		box.BackgroundColor3 = Color3.new()
-		box.BackgroundTransparency = 0.5
-		box.Text = '⚠️WARNING⚠️\nThe game\'s update hash is not the same as the current script hash, this ⚠️MAY⚠️ mean the game developer has added detections.\nBy clicking OK, you agree to all risks of using this product.\n\n- 7GrandDad'
-		box.TextColor3 = Color3.new(1, 1, 1)
-		box.TextScaled = true
-		box.Font = Enum.Font.Arial
-		box.Parent = vape.gui
-		local button = Instance.new('TextButton')
-		button.AnchorPoint = Vector2.new(0.5, 0.5)
-		button.Size = UDim2.fromScale(0.2, 0.05)
-		button.Position = UDim2.fromScale(0.5, 0.95)
-		button.BackgroundColor3 = Color3.new()
-		button.Text = 'OK'
-		button.TextColor3 = Color3.new(1, 1, 1)
-		button.TextScaled = true
-		button.Font = Enum.Font.Arial
-		button.Parent = box
-
-		button.MouseButton1Click:Connect(function()
-			writefile(path, hash)
-			box:Destroy()
-		end)
-
-		box.Destroying:Wait()
-	end
+	-- $$ banknote $$: warning box removed (no agreement prompt, no file write)
+	return
 end
 
 if not select(1, ...) then

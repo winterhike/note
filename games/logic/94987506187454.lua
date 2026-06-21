@@ -24,17 +24,9 @@ local function log(...) print("[banknote/REDLINER]", ...) end
 local function notify(msg) pcall(function() BN:Notification(tostring(msg), 4) end) end
 
 --======================================================================
--- 1. Files the Vape feature script expects (drawing stub + commit pin).
---    drawing.lua is only used by Vape's actor path (which we skip), so a
---    harmless stub avoids the network fetch + keeps "no visuals".
+-- 1. (no scratch files needed: the feature script's warning prompt and
+--    drawing download were removed, so nothing is written outside banknote.)
 --======================================================================
-pcall(function()
-    if not isfolder("newvape") then makefolder("newvape") end
-    if not isfolder("newvape/libraries") then makefolder("newvape/libraries") end
-    if not isfolder("newvape/profiles") then makefolder("newvape/profiles") end
-    writefile("newvape/libraries/drawing.lua", "return 0")
-    writefile("newvape/profiles/commit.txt", "main")
-end)
 
 --======================================================================
 -- 2. banknote window + lazy pages (one page per Vape category)
