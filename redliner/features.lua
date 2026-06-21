@@ -340,7 +340,63 @@ run(function()
 		return
 	end
 
-	local classList = rawget(root, 'Classes') or {}
+	-- $$ banknote $$ -------------------------------------------------------
+	-- CRITICAL: on some executors `require(ClientRoot)` does NOT return the
+	-- same instance the game ran Init() on (the module cache isn't shared),
+	-- so our `root` has an empty `Classes` table and every controller lookup
+	-- (redline[redline.MoveController] etc.) returns nil -> features fire with
+	-- a nil controller and the game's own code errors. Vape assumes a shared
+	-- require cache; we can't.
+	--
+	-- Fix: locate the game's REAL, populated ClientRoot on the Lua heap via
+	-- getgc (the one with loaded==true and a filled Classes table) and resolve
+	-- controllers from it. Cached once found; re-scanned while still empty so a
+	-- lobby->match transition (Classes populates late) is picked up live.
+	-----------------------------------------------------------------------
+	local function classCount(t)
+		if type(t) ~= 'table' then return 0 end
+		local n = 0
+		for _ in pairs(t) do n += 1 end
+		return n
+	end
+
+	local function isRootShaped(o)
+		local ok, shaped = pcall(function()
+			return type(rawget(o, 'Classes')) == 'table'
+				and rawget(o, 'Init') ~= nil
+				and rawget(o, 'Context') ~= nil
+		end)
+		return ok and shaped
+	end
+
+	local liveRoot = root
+	local lastScan = 0
+	local function findLiveRoot()
+		-- prefer the current live root if it already has controllers
+		if classCount(rawget(liveRoot, 'Classes')) > 0 then
+			return liveRoot
+		end
+		if type(getgc) ~= 'function' then return liveRoot end
+		-- throttle: a full heap scan is expensive; at most ~2x/second while empty.
+		if tick() - lastScan < 0.5 then return liveRoot end
+		lastScan = tick()
+		local best
+		for _, o in getgc(true) do
+			if type(o) == 'table' and o ~= liveRoot and isRootShaped(o) then
+				local n = classCount(rawget(o, 'Classes'))
+				if n > 0 then
+					if rawget(o, 'loaded') == true then
+						liveRoot = o
+						return o
+					end
+					best = best or o
+				end
+			end
+		end
+		if best then liveRoot = best end
+		return liveRoot
+	end
+
 	redline = setmetatable({
 		AttackBox = require(replicatedStorage.Assets.ModuleScripts.Attack),
 		AttackCast = require(replicatedStorage.Assets.ModuleScripts.Attack.Hitbox),
@@ -351,16 +407,15 @@ run(function()
 		Teams = redline.Teams
 	}, {
 		__index = function(self, ind)
-			-- $$ banknote $$: resolve controllers live. In the lobby root.Classes is empty;
-			-- REDLINER repopulates / may swap the table on match start, so re-fetch each lookup.
-			local live = rawget(root, 'Classes')
-			if live then
-				local v = rawget(live, ind)
-				if v ~= nil then
-					return v
-				end
+			-- resolve controllers live from whichever ClientRoot actually has them
+			local classes = rawget(liveRoot, 'Classes')
+			if classCount(classes) == 0 then
+				classes = rawget(findLiveRoot(), 'Classes')
 			end
-			return rawget(classList, ind)
+			if type(classes) == 'table' then
+				return rawget(classes, ind)
+			end
+			return nil
 		end
 	})
 
@@ -931,7 +986,12 @@ run(function()
 							cooldown = os.clock() + 0.2
 	
 							task.spawn(function()
-								redline.ActionFunction(redline[redline.ActionController], 'PARRY').Pressed:Fire()
+								-- $$ banknote $$: guard so a not-yet-resolved controller can't crash the game.
+								local ctrl = redline[redline.ActionController]
+								if ctrl and redline.ActionFunction then
+									local ok, act = pcall(redline.ActionFunction, ctrl, 'PARRY')
+									if ok and type(act) == 'table' and act.Pressed then act.Pressed:Fire() end
+								end
 							end)
 						end
 					end
@@ -1128,7 +1188,12 @@ run(function()
 							targetinfo.Targets[ent] = tick() + 1
 							if AutoSwing.Enabled then
 								task.spawn(function()
-									redline.ActionFunction(redline[redline.ActionController], 'MELEE').Pressed:Fire()
+									-- $$ banknote $$: guard so a not-yet-resolved controller can't crash the game.
+									local ctrl = redline[redline.ActionController]
+									if ctrl and redline.ActionFunction then
+										local ok, act = pcall(redline.ActionFunction, ctrl, 'MELEE')
+										if ok and type(act) == 'table' and act.Pressed then act.Pressed:Fire() end
+									end
 								end)
 							end
 						end

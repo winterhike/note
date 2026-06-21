@@ -37,7 +37,7 @@ local circle = Instance.new("Frame")
 circle.Size = UDim2.fromOffset(400, 400)
 circle.AnchorPoint = Vector2.new(0.5, 0.5)
 circle.BackgroundTransparency = 1
-circle.BorderSizePixel = 0
+circle.BorderSizePixel = 0                                                                                  
 circle.Visible = false
 circle.Parent = screenGui
 
