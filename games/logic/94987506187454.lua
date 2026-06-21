@@ -184,6 +184,7 @@ do
     SA:Slider({ Name = "Hit Chance", Opt = "HitChance", Min = 0, Max = 100, Default = 85, Suffix = "%" })
 
     local RB = Feature("Combat", "RageBot")
+    RB:Targets({ Players = true })
     RB:Slider({ Name = "Range", Opt = "Range", Min = 1, Max = 1000, Default = 200, Suffix = "m" })
     RB:Slider({ Name = "Swing Delay", Opt = "SwingDelay", Min = 0.05, Max = 1, Decimal = 100, Default = 0.1, Suffix = "s" })
 end

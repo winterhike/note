@@ -695,58 +695,127 @@ do
 end
 
 -- RageBot --------------------------------------------------------------
--- Auto-kills everyone: injects EVERY alive entity's hurtbox into each melee
--- scan (so one swing hits all targets in range) and swings continuously.
+-- Auto-kills everyone WITHOUT needing to aim. Mechanically identical to the
+-- (proven working) KillAura: each melee scan we inject ONE target's hurtbox
+-- and swing. Injecting every target at once gets the whole swing voided by
+-- REDLINER's anti-tamper (that's why the old multi-hit version "swung but
+-- never hit"). Instead we lock onto the single closest alive target, hammer
+-- it until it dies, then the next-closest becomes the target -- so it still
+-- clears the lobby, just one body at a time. No MaxAngle gate: it hits behind
+-- you too. Note: melee is server-range-validated, so effective reach is the
+-- weapon's real range regardless of the Range slider.
 do
     local Overlay = OverlapParams.new()
     Overlay.FilterType = Enum.RaycastFilterType.Include
     Overlay.RespectCanCollide = false
+    local function getTarget()
+        return entitylib.EntityPosition({
+            Range   = Opt('RageBot', 'Range', 200),
+            Part    = 'RootPart',
+            Players = Opt('RageBot', 'Players', true),
+            NPCs    = Opt('RageBot', 'NPCs', false)
+        })
+    end
     bindFeature('RageBot', function(self)
         HitboxHook:Add('RageBot', function(results)
             if type(results[1]) ~= 'table' then return end
-            local range  = Opt('RageBot', 'Range', 200)
-            local origin = entitylib.isAlive and entitylib.character.RootPart.Position or Vector3.zero
-            Overlay.FilterDescendantsInstances = CollectionService:GetTagged('Hurtbox')
-            for _, ent in entitylib.List do
-                if ent.RootPart and (ent.Player or ent.NPC) and ent.Targetable ~= false then
-                    if (ent.RootPart.Position - origin).Magnitude <= range then
-                        for _, p in workspace:GetPartBoundsInRadius(ent.RootPart.Position, 6, Overlay) do
-                            table.insert(results[1], p)
-                        end
-                    end
+            local ent = getTarget()
+            if ent and ent.RootPart then
+                Overlay.FilterDescendantsInstances = CollectionService:GetTagged('Hurtbox')
+                for _, p in workspace:GetPartBoundsInRadius(ent.RootPart.Position, 6, Overlay) do
+                    table.insert(results[1], p)
                 end
             end
         end, 0)
         while self.Enabled do
-            task.spawn(fireAction, 'MELEE')
+            if getTarget() then task.spawn(fireAction, 'MELEE') end
             task.wait(Opt('RageBot', 'SwingDelay', 0.1))
         end
     end, function() HitboxHook:Remove('RageBot') end)
 end
 
 -- GrapplerCooldown -----------------------------------------------------
--- Customise the grapple (AUGMENT) cooldown. 0 = no cooldown (clears the gate
--- instantly), 1 = regular. In between scales the wait (value * cap seconds);
--- we only ever clear EARLY, never extend, so 1 leaves the real cooldown intact.
+-- Customise the grapple (AUGMENT) cooldown. 0 = no cooldown (you always keep
+-- charges / can spam), 1 = the game's regular cooldown.
+--
+-- The grapple is a 2-charge ability that recharges over time. The charge
+-- state lives inside REDLINER's augment item (held by the LoadoutHandler).
+-- We attack it from three angles every heartbeat when Cooldown < 1:
+--   1. force the AUGMENT action firable (clear Blockers + Enabled) so a press
+--      is never swallowed by the "no charge" gate,
+--   2. restore any charge-like integer field on the live augment item to its
+--      observed maximum,
+--   3. zero any recharge / next-ready timestamp so the count never sits empty.
+-- Field names are obfuscated, so we snapshot the item's numeric layout on
+-- enable, learn each field's max, and keep small-integer "charge" fields and
+-- clock-like "timer" fields pinned. The item layout is also reported to the
+-- bridge (__augment) for live inspection.
 do
-    local CAP = 5
+    -- known obfuscated handles (from discovery); fall back gracefully if the
+    -- game updates and renames them.
+    local LOADOUT_CLASS = '_xd1706540247308ea'
+    local LOADOUT_GETTER = '_x372c01be8a28bc70'
+
+    local function getAugmentItem()
+        local lh = redline[LOADOUT_CLASS]
+        if lh == nil then return nil end
+        local ok, item = pcall(function()
+            local getter = lh[LOADOUT_GETTER]
+            if type(getter) == 'function' then return getter(lh, 'augment') end
+            return nil
+        end)
+        if ok and type(item) == 'table' then return item end
+        return nil
+    end
+
     bindFeature('GrapplerCooldown', function(self)
-        local blockStart
+        local item = getAugmentItem()
+        -- learn the numeric field layout so we can pin charges/timers safely
+        local maxima = {}       -- field -> highest integer value seen (charge guess)
+        if item then
+            local report = {}
+            for k, v in pairs(item) do
+                if type(v) == 'number' then
+                    if v == math.floor(v) and v >= 0 and v <= 8 then maxima[k] = v end
+                    report[#report + 1] = tostring(k) .. '=' .. tostring(v)
+                end
+            end
+            pcall(function() bridge:SetAttribute('__augment', table.concat(report, ', ')) end)
+        else
+            pcall(function() bridge:SetAttribute('__augment', 'augment item not found') end)
+        end
+
         self:Clean(RunService.Heartbeat:Connect(function()
-            local ctrl = redline[redline.ActionController]
-            if not ctrl or not redline.ActionFunction then return end
-            local ok, act = pcall(redline.ActionFunction, ctrl, 'AUGMENT')
-            if not ok or type(act) ~= 'table' then return end
             local value = Opt('GrapplerCooldown', 'Cooldown', 1)
-            local blocked = (act.Enabled == false) or (next(act.Blockers) ~= nil)
-            if blocked then
-                blockStart = blockStart or tick()
-                if (tick() - blockStart) >= (value * CAP) then
+            if value >= 1 then return end -- regular cooldown: leave everything alone
+
+            -- 1) keep the AUGMENT action firable
+            local ctrl = redline[redline.ActionController]
+            if ctrl and redline.ActionFunction then
+                local ok, act = pcall(redline.ActionFunction, ctrl, 'AUGMENT')
+                if ok and type(act) == 'table' then
                     pcall(function() table.clear(act.Blockers) end)
                     act.Enabled = true
                 end
-            else
-                blockStart = nil
+            end
+
+            -- 2/3) pin charge + timer fields on the live augment item
+            item = item or getAugmentItem()
+            if item then
+                for k, v in pairs(item) do
+                    if type(v) == 'number' then
+                        -- learn the true ceiling for small-integer (charge) fields
+                        if v == math.floor(v) and v >= 0 and v <= 8 then
+                            if not maxima[k] or v > maxima[k] then maxima[k] = v end
+                        end
+                        local cap = maxima[k]
+                        if cap and cap > 0 and v < cap then
+                            pcall(function() item[k] = cap end)  -- restore charges
+                        elseif v > 1e6 then
+                            pcall(function() item[k] = 0 end)    -- zero clock-like timers
+                        end
+                    end
+                end
             end
         end))
     end)
