@@ -218,13 +218,13 @@ do
     end
     TS:Dropdown({ Name = "Version", Opt = "Version", Items = { "v1", "v2" }, Default = "v1",
         OnChange = function(val) setV2Visible(val == "v2") end })
-    TS:Slider({ Name = "Search Range", Opt = "SearchRange", Min = 1, Max = 30, Default = 24, Suffix = "m" })
+    TS:Slider({ Name = "Search Range", Opt = "SearchRange", Min = 1, Max = 100, Default = 24, Suffix = "m" })
     TS:Slider({ Name = "Strafe Range", Opt = "StrafeRange", Min = 1, Max = 30, Default = 18, Suffix = "m" })
     TS:Slider({ Name = "Y Factor", Opt = "YFactor", Min = 0, Max = 100, Default = 100, Suffix = "%" })
     -- v2-only options (shown only when Version == v2)
     v2elems.priority = TS:Dropdown({ Name = "Priority (v2)", Opt = "Priority", Items = { "Closest Distance", "Lowest HP", "First Target" }, Default = "Closest Distance" })
     v2elems.sticky = TS:Toggle({ Name = "Sticky (v2)", Opt = "Sticky", Default = false })
-    v2elems.orbit  = TS:Slider({ Name = "Orbit Speed (v2)", Opt = "Speed", Min = 1, Max = 150, Default = 60, Suffix = "m" })
+    v2elems.orbit  = TS:Slider({ Name = "Orbit Speed (v2)", Opt = "Speed", Min = 1, Max = 250, Default = 60, Suffix = "m" })
     v2elems.rot    = TS:Slider({ Name = "Rotation Speed (v2)", Opt = "RotationSpeed", Min = 1, Max = 40, Default = 12 })
     v2elems.pred   = TS:Slider({ Name = "Prediction (v2)", Opt = "Prediction", Min = 0, Max = 1, Decimal = 100, Default = 0 })
     setV2Visible(false) -- hidden by default (v1 selected)
