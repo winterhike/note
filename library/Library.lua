@@ -5172,90 +5172,193 @@ local Library = {
 
                 local infoGui
                 local function showLoaded()
-                    local lines, count = {}, 0
+                    if infoGui then infoGui:Destroy() infoGui = nil end
+
+                    local screen = Instance.new("ScreenGui")
+                    screen.Name = "\0"
+                    screen.ResetOnSpawn = false
+                    screen.IgnoreGuiInset = true
+                    screen.DisplayOrder = 2000000
+                    screen.Parent = (gethui and gethui()) or CoreGui
+                    infoGui = screen
+
+                    local W, H = 540, 360
+                    local Outer = Library:Create("Frame", {
+                        Parent = screen,
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = UDim2.fromScale(0.5, 0.5),
+                        Size = UDim2.fromOffset(W, H),
+                        BackgroundColor3 = Library.Theme["Background"],
+                        BorderSizePixel = 0
+                    }):AddToTheme({BackgroundColor3 = 'Background'})
+
+                    -- outer black border + inner outline, exactly like the menu
+                    Library:Create("UIStroke", {
+                        Parent = Outer.Instance,
+                        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+                        LineJoinMode = Enum.LineJoinMode.Miter,
+                        Thickness = 1,
+                        Color = Library.Theme["Border"]
+                    }):AddToTheme({Color = 'Border'})
+
+                    local Inline = Library:Create("Frame", {
+                        Parent = Outer.Instance,
+                        AnchorPoint = Vector2.new(0.5, 0.5),
+                        Position = UDim2.fromScale(0.5, 0.5),
+                        Size = UDim2.new(1, -2, 1, -2),
+                        BackgroundColor3 = Library.Theme["Background"],
+                        BorderSizePixel = 0
+                    }):AddToTheme({BackgroundColor3 = 'Background'})
+                    Library:Create("UIStroke", {
+                        Parent = Inline.Instance,
+                        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+                        LineJoinMode = Enum.LineJoinMode.Miter,
+                        Thickness = 1,
+                        Color = Library.Theme["Outline"]
+                    }):AddToTheme({Color = 'Outline'})
+
+                    local Title = Library:Create("TextLabel", {
+                        Parent = Inline.Instance,
+                        FontFace = Library.Font,
+                        TextSize = Library.FontSize,
+                        BackgroundTransparency = 1,
+                        Position = UDim2.fromOffset(12, 9),
+                        Size = UDim2.new(1, -24, 0, 16),
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextColor3 = Library.Theme["Accent"],
+                        Text = "loaded luas"
+                    }):AddToTheme({TextColor3 = 'Accent'})
+
+                    local Sub = Library:Create("TextLabel", {
+                        Parent = Inline.Instance,
+                        FontFace = Library.Font,
+                        TextSize = Library.FontSize,
+                        BackgroundTransparency = 1,
+                        Position = UDim2.fromOffset(12, 27),
+                        Size = UDim2.new(1, -24, 0, 14),
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        TextTruncate = Enum.TextTruncate.AtEnd,
+                        TextColor3 = Library.Theme["Inactive Text"],
+                        Text = LuasFolder
+                    }):AddToTheme({TextColor3 = 'Inactive Text'})
+
+                    Library:Create("Frame", {
+                        Parent = Inline.Instance,
+                        Position = UDim2.fromOffset(10, 48),
+                        Size = UDim2.new(1, -20, 0, 1),
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Library.Theme["Outline"]
+                    }):AddToTheme({BackgroundColor3 = 'Outline'})
+
+                    local Scroll = Library:Create("ScrollingFrame", {
+                        Parent = Inline.Instance,
+                        Position = UDim2.fromOffset(10, 56),
+                        Size = UDim2.new(1, -20, 1, -102),
+                        BackgroundTransparency = 1,
+                        BorderSizePixel = 0,
+                        ScrollBarThickness = 3,
+                        ScrollBarImageColor3 = Library.Theme["Accent"],
+                        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                        CanvasSize = UDim2.new(0, 0, 0, 0)
+                    }):AddToTheme({ScrollBarImageColor3 = 'Accent'})
+                    Library:Create("UIListLayout", {
+                        Parent = Scroll.Instance,
+                        Padding = UDim.new(0, 6),
+                        SortOrder = Enum.SortOrder.LayoutOrder
+                    })
+
+                    local count = 0
                     for n, entry in pairs(loadedFiles) do
                         count = count + 1
-                        lines[#lines + 1] = "• " .. n .. ".lua   [" .. (entry.category or "?") .. "]"
-                        lines[#lines + 1] = "    path: " .. entry.path
-                        lines[#lines + 1] = "    size: " .. sizeStr(entry.path)
-                        lines[#lines + 1] = ""
+                        local Row = Library:Create("Frame", {
+                            Parent = Scroll.Instance,
+                            Size = UDim2.new(1, -4, 0, 0),
+                            AutomaticSize = Enum.AutomaticSize.Y,
+                            BackgroundColor3 = Library.Theme["Inline"],
+                            BorderSizePixel = 0
+                        }):AddToTheme({BackgroundColor3 = 'Inline'})
+                        Library:Create("UIStroke", {
+                            Parent = Row.Instance,
+                            ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+                            LineJoinMode = Enum.LineJoinMode.Miter,
+                            Color = Library.Theme["Outline"]
+                        }):AddToTheme({Color = 'Outline'})
+                        Library:Create("UIPadding", {
+                            Parent = Row.Instance,
+                            PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6),
+                            PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8)
+                        })
+                        Library:Create("UIListLayout", {
+                            Parent = Row.Instance, Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder
+                        })
+                        Library:Create("TextLabel", {
+                            Parent = Row.Instance, FontFace = Library.Font, TextSize = Library.FontSize,
+                            BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0),
+                            TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Library.Theme["Accent"],
+                            Text = n .. ".lua   [" .. (entry.category or "?") .. "]"
+                        }):AddToTheme({TextColor3 = 'Accent'})
+                        Library:Create("TextLabel", {
+                            Parent = Row.Instance, FontFace = Library.Font, TextSize = Library.FontSize,
+                            BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0),
+                            TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Library.Theme["Text"],
+                            Text = "path: " .. entry.path
+                        }):AddToTheme({TextColor3 = 'Text'})
+                        Library:Create("TextLabel", {
+                            Parent = Row.Instance, FontFace = Library.Font, TextSize = Library.FontSize,
+                            BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 0),
+                            TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Library.Theme["Inactive Text"],
+                            Text = "size: " .. sizeStr(entry.path)
+                        }):AddToTheme({TextColor3 = 'Inactive Text'})
                     end
-                    if count == 0 then lines = { "No luas loaded." } end
+                    if count == 0 then
+                        Library:Create("TextLabel", {
+                            Parent = Scroll.Instance, FontFace = Library.Font, TextSize = Library.FontSize,
+                            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 20),
+                            TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Library.Theme["Inactive Text"],
+                            Text = "no luas loaded."
+                        }):AddToTheme({TextColor3 = 'Inactive Text'})
+                    end
+                    Title.Instance.Text = "loaded luas (" .. count .. ")"
 
-                    if infoGui then infoGui:Destroy() infoGui = nil end
-                    infoGui = Instance.new("ScreenGui")
-                    infoGui.Name = "BanknoteLuaInfo"
-                    infoGui.ResetOnSpawn = false
-                    infoGui.IgnoreGuiInset = true
-                    infoGui.DisplayOrder = 2000000
-                    infoGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
-
-                    local frame = Instance.new("Frame")
-                    frame.AnchorPoint = Vector2.new(0.5, 0.5)
-                    frame.Position = UDim2.fromScale(0.5, 0.5)
-                    frame.Size = UDim2.fromOffset(560, 380)
-                    frame.BackgroundColor3 = Library.Theme["Background"] or Color3.fromRGB(20, 22, 24)
-                    frame.BorderSizePixel = 0
-                    frame.Parent = infoGui
-                    local stroke = Instance.new("UIStroke")
-                    stroke.Color = Library.Theme["Accent"] or Color3.fromRGB(120, 180, 255)
-                    stroke.Thickness = 1
-                    stroke.Parent = frame
-
-                    local title = Instance.new("TextLabel")
-                    title.BackgroundTransparency = 1
-                    title.Size = UDim2.new(1, -20, 0, 28)
-                    title.Position = UDim2.fromOffset(12, 8)
-                    title.Font = Enum.Font.Code
-                    title.TextSize = 16
-                    title.TextXAlignment = Enum.TextXAlignment.Left
-                    title.TextColor3 = Library.Theme["Accent"] or Color3.fromRGB(120, 180, 255)
-                    title.Text = "Loaded Luas (" .. count .. ")  -  " .. LuasFolder
-                    title.TextTruncate = Enum.TextTruncate.AtEnd
-                    title.Parent = frame
-
-                    local scroll = Instance.new("ScrollingFrame")
-                    scroll.Position = UDim2.fromOffset(12, 40)
-                    scroll.Size = UDim2.new(1, -24, 1, -84)
-                    scroll.BackgroundTransparency = 1
-                    scroll.BorderSizePixel = 0
-                    scroll.ScrollBarThickness = 4
-                    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-                    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-                    scroll.Parent = frame
-
-                    local txt = Instance.new("TextLabel")
-                    txt.BackgroundTransparency = 1
-                    txt.Size = UDim2.new(1, 0, 0, 0)
-                    txt.AutomaticSize = Enum.AutomaticSize.Y
-                    txt.Font = Enum.Font.Code
-                    txt.TextSize = 13
-                    txt.TextWrapped = true
-                    txt.TextXAlignment = Enum.TextXAlignment.Left
-                    txt.TextYAlignment = Enum.TextYAlignment.Top
-                    txt.TextColor3 = Library.Theme["Text"] or Color3.fromRGB(235, 235, 235)
-                    txt.Text = table.concat(lines, "\n")
-                    txt.Parent = scroll
-
-                    local close = Instance.new("TextButton")
-                    close.AnchorPoint = Vector2.new(0.5, 1)
-                    close.Position = UDim2.new(0.5, 0, 1, -10)
-                    close.Size = UDim2.fromOffset(120, 26)
-                    close.BackgroundColor3 = Library.Theme["Inline"] or Color3.fromRGB(35, 38, 42)
-                    close.BorderSizePixel = 0
-                    close.AutoButtonColor = true
-                    close.Font = Enum.Font.Code
-                    close.TextSize = 14
-                    close.TextColor3 = Library.Theme["Text"] or Color3.fromRGB(235, 235, 235)
-                    close.Text = "Close"
-                    close.Parent = frame
-                    local cstroke = Instance.new("UIStroke")
-                    cstroke.Color = Color3.fromRGB(0, 0, 0)
-                    cstroke.Thickness = 1
-                    cstroke.Parent = close
-                    close.MouseButton1Click:Connect(function()
-                        if infoGui then infoGui:Destroy() infoGui = nil end
+                    local Close = Library:Create("TextButton", {
+                        Parent = Inline.Instance,
+                        AnchorPoint = Vector2.new(0.5, 1),
+                        Position = UDim2.new(0.5, 0, 1, -10),
+                        Size = UDim2.fromOffset(120, 26),
+                        BackgroundColor3 = Library.Theme["Element"],
+                        BorderSizePixel = 0,
+                        AutoButtonColor = false,
+                        FontFace = Library.Font,
+                        TextSize = Library.FontSize,
+                        TextColor3 = Library.Theme["Text"],
+                        Text = "close"
+                    }):AddToTheme({BackgroundColor3 = 'Element', TextColor3 = 'Text'})
+                    Library:Create("UIStroke", {
+                        Parent = Close.Instance,
+                        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+                        LineJoinMode = Enum.LineJoinMode.Miter,
+                        Color = Library.Theme["Outline"]
+                    }):AddToTheme({Color = 'Outline'})
+                    Close:OnHover(function()
+                        Close:Tween({BackgroundColor3 = Library.Theme["Hovered Element"]})
+                    end, function()
+                        Close:Tween({BackgroundColor3 = Library.Theme["Element"]})
                     end)
+
+                    local function closePopup()
+                        if infoGui ~= screen then return end
+                        Outer:Tween({Size = UDim2.fromOffset(W * 0.92, H * 0.92)})
+                        Outer:FadeDescendants(false)
+                        task.delay(Library.Animation.Time, function()
+                            if infoGui == screen then screen:Destroy() infoGui = nil end
+                        end)
+                    end
+                    Close:Connect("MouseButton1Down", closePopup)
+
+                    -- open animation: small + faded -> full + visible
+                    Outer.Instance.Size = UDim2.fromOffset(W * 0.92, H * 0.92)
+                    Outer:Tween({Size = UDim2.fromOffset(W, H)})
+                    Outer:FadeDescendants(true)
                 end
 
                 Section:Button({
