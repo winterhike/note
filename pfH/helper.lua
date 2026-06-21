@@ -3215,7 +3215,8 @@ LPH_JIT_MAX(function() -- Main Cheat
     end
 
     local raycastStep = 1 / 30 -- 60 for more accuracy
-    local function scanPositions(origin, target, accel, speed, penetration)
+    local function scanPositions(origin, target, accel, speed, penetration, targetVel)
+        targetVel = targetVel or Vector3.zero
         local origins = getPositionOffsets(origin, target, helper:GetValue("Rage Bot", "Fire Position Scanning") and helper:GetValue("Rage Bot", "Fire Position Offset"))
         local targets = getPositionOffsets(target, origin, helper:GetValue("Rage Bot", "Hit Position Scanning") and helper:GetValue("Rage Bot", "Hit Position Offset"))
 
@@ -3223,11 +3224,30 @@ LPH_JIT_MAX(function() -- Main Cheat
             local newOrigin = origins[originIndex]
 
             for targetIndex = 1, #targets do
-                local newTarget = targets[targetIndex]
-                local velocity, hitTime = trajectory(newOrigin, accel, newTarget, speed)
+                local baseTarget = targets[targetIndex]
+                -- Lead moving targets via velocity prediction (same solver the
+                -- silent aim / aimbot use). The old code used the static
+                -- trajectory() which ignored target motion, so the ragebot
+                -- missed moving players and was weak at range (longer bullet
+                -- travel time = more lead needed). complexTrajectory solves the
+                -- intercept for a target moving at targetVel.
+                local velocity, hitTime
+                local ok, v, t = pcall(complexTrajectory, newOrigin, accel, baseTarget, speed, targetVel)
+                if ok and v and t and t == t and t > 0 then
+                    velocity, hitTime = v, t
+                else
+                    -- no valid intercept (impossible lead / NaN): fall back to the
+                    -- static solver so stationary/close targets still fire.
+                    velocity, hitTime = trajectory(newOrigin, accel, baseTarget, speed)
+                end
 
-                if bulletcheck(newOrigin, newTarget, velocity, accel, penetration, raycastStep) then
-                    return newOrigin, newTarget, velocity, hitTime
+                if velocity and hitTime and hitTime == hitTime then
+                    -- aim at where the target will actually be at impact
+                    local newTarget = baseTarget + (targetVel * hitTime)
+
+                    if bulletcheck(newOrigin, newTarget, velocity, accel, penetration, raycastStep) then
+                        return newOrigin, newTarget, velocity, hitTime
+                    end
                 end
             end
         end
@@ -5630,7 +5650,16 @@ LPH_JIT_MAX(function() -- Main Cheat
                 if closestPlayers and penetration and speed and (weapon._magCount > 0 or weapon._spareCount > 0) then
                     for playerIndex = 1, #closestPlayers do
                         local entry = closestPlayers[playerIndex]
-                        local newOrigin, newTarget, velocity, hitTime = scanPositions(origin, entry._receivedPosition, publicSettings.bulletAcceleration, speed, penetration)
+                        -- target velocity from the movement history (lead the shot)
+                        local rbVel = Vector3.zero
+                        do
+                            local mp = movementCache.position[entry._player]
+                            local mt = movementCache.time
+                            if mp and mp[15] and mt[15] and mt[1] and (mt[15] - mt[1]) ~= 0 then
+                                rbVel = (mp[15] - mp[1]) / (mt[15] - mt[1])
+                            end
+                        end
+                        local newOrigin, newTarget, velocity, hitTime = scanPositions(origin, entry._receivedPosition, publicSettings.bulletAcceleration, speed, penetration, rbVel)
 
                         if newOrigin then
                             if weapon._magCount < 1 then
