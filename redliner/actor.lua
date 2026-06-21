@@ -54,6 +54,7 @@ end
 local redline = { Teams = {} }
 local starttime = os.clock()
 local TargetStrafeVector
+local strafeDriving = false  -- true while TargetStrafe v2 is directly driving velocity
 
 local function searchForPacket(func, unreliable)
     for _, v in debug.getconstants(func) do
@@ -488,6 +489,7 @@ do
     bindFeature('Speed', function(self)
         self:Clean(RunService.PreSimulation:Connect(function()
             if On('Fly') or On('LongJump') then return end
+            if strafeDriving then return end -- TargetStrafe v2 owns velocity
             local mc = redline[redline.MoveController]
             if mc and typeof(mc[redline.VelocityName]) == 'Vector3' then
                 local dir = (TargetStrafeVector or mc:getMoveDirection()) * Opt('Speed', 'Speed', 100)
@@ -506,38 +508,106 @@ do
     local rayCheck = RaycastParams.new()
     pcall(function() rayCheck.FilterDescendantsInstances = { workspace.Map } end)
     rayCheck.FilterType = Enum.RaycastFilterType.Include
+
+    -- v1: original Vape behaviour. Sets the horizontal TargetStrafeVector; you
+    -- still need Speed/Fly enabled to actually move.
+    local function strafeV1(ang, oldent)
+        local vec
+        local wallcheck = Opt('TargetStrafe', 'Walls', false)
+        local ent = not UserInputService:IsKeyDown(Enum.KeyCode.S) and entitylib.isAlive and entitylib.EntityPosition({
+            Range = Opt('TargetStrafe', 'SearchRange', 24), Wallcheck = wallcheck, Part = 'RootPart',
+            Players = Opt('TargetStrafe', 'Players', true), NPCs = Opt('TargetStrafe', 'NPCs', false)
+        })
+        if ent then
+            local root, targetPos = entitylib.character.RootPart, ent.RootPart.Position
+            if On('Fly') or workspace:Raycast(targetPos, Vector3.new(0, -70, 0), rayCheck) then
+                local factor, localPosition = 0, root.Position
+                if ent ~= oldent then ang = math.deg(select(2, CFrame.lookAt(targetPos, localPosition):ToEulerAnglesYXZ())) end
+                local yFactor = math.abs(localPosition.Y - targetPos.Y) * (Opt('TargetStrafe', 'YFactor', 100) / 100)
+                local entityPos = Vector3.new(targetPos.X, localPosition.Y, targetPos.Z)
+                local newPos = entityPos + (CFrame.Angles(0, math.rad(ang), 0).LookVector * (Opt('TargetStrafe', 'StrafeRange', 18) - yFactor))
+                if not On('Fly') and not workspace:Raycast(newPos, Vector3.new(0, -70, 0), rayCheck) then
+                    newPos = entityPos
+                    factor = 40
+                end
+                ang += factor % 360
+                vec = ((newPos - localPosition) * Vector3.new(1, 0, 1)).Unit
+                vec = vec == vec and vec or Vector3.zero
+            else
+                ent = nil
+            end
+        end
+        TargetStrafeVector = ent and vec or nil
+        strafeDriving = false
+        return ang, ent
+    end
+
+    -- v2: improved, self-driving orbit (works standalone, no Speed needed).
+    -- "Sticky" chases the target's height, so you keep orbiting even as they
+    -- fly straight up -- you climb with them until they die. Also supports
+    -- prediction (lead the target's velocity) and an adjustable rotation speed.
+    local function strafeV2(ang, oldent)
+        local mc = redline[redline.MoveController]
+        if not (mc and typeof(mc[redline.VelocityName]) == 'Vector3' and entitylib.isAlive) then
+            TargetStrafeVector = nil strafeDriving = false return ang, nil
+        end
+        local ent = not UserInputService:IsKeyDown(Enum.KeyCode.S) and entitylib.EntityPosition({
+            Range = Opt('TargetStrafe', 'SearchRange', 24), Part = 'RootPart',
+            Players = Opt('TargetStrafe', 'Players', true), NPCs = Opt('TargetStrafe', 'NPCs', false)
+        })
+        if not ent then TargetStrafeVector = nil strafeDriving = false return ang, nil end
+
+        local root  = entitylib.character.RootPart
+        local myPos = root.Position
+        local tp    = ent.RootPart.Position
+
+        local predict = Opt('TargetStrafe', 'Prediction', 0)
+        if predict > 0 then
+            local ok, vel = pcall(function() return ent.RootPart.AssemblyLinearVelocity end)
+            if ok and typeof(vel) == 'Vector3' then tp = tp + (vel * predict) end
+        end
+
+        if ent ~= oldent then ang = math.deg(select(2, CFrame.lookAt(tp, myPos):ToEulerAnglesYXZ())) end
+        ang = (ang + Opt('TargetStrafe', 'RotationSpeed', 12)) % 360
+
+        local sticky  = Opt('TargetStrafe', 'Sticky', false)
+        local range   = Opt('TargetStrafe', 'StrafeRange', 18)
+        local speed   = Opt('TargetStrafe', 'Speed', 60)
+        local centerY = sticky and tp.Y or myPos.Y
+        local desired = Vector3.new(tp.X, centerY, tp.Z) + (CFrame.Angles(0, math.rad(ang), 0).LookVector * range)
+        local delta   = desired - myPos
+
+        local horiz = delta * Vector3.new(1, 0, 1)
+        local hvel  = horiz.Magnitude > 0.01 and (horiz.Unit * speed) or Vector3.zero
+        hvel = hvel == hvel and hvel or Vector3.zero
+
+        TargetStrafeVector = horiz.Magnitude > 0.01 and horiz.Unit or Vector3.zero
+
+        if On('Fly') then
+            strafeDriving = false
+        else
+            local yvel
+            if sticky then
+                yvel = math.clamp(delta.Y * 10, -speed, speed)
+            else
+                yvel = mc[redline.VelocityName].Y
+            end
+            mc[redline.VelocityName] = Vector3.new(hvel.X, yvel, hvel.Z)
+            strafeDriving = true
+        end
+        return ang, ent
+    end
+
     bindFeature('TargetStrafe', function(self)
         local ang, oldent
         self:Clean(RunService.PreSimulation:Connect(function()
-            local vec
-            local wallcheck = Opt('TargetStrafe', 'Walls', false)
-            local ent = not UserInputService:IsKeyDown(Enum.KeyCode.S) and entitylib.isAlive and entitylib.EntityPosition({
-                Range = Opt('TargetStrafe', 'SearchRange', 24), Wallcheck = wallcheck, Part = 'RootPart',
-                Players = Opt('TargetStrafe', 'Players', true), NPCs = Opt('TargetStrafe', 'NPCs', false)
-            })
-            if ent then
-                local root, targetPos = entitylib.character.RootPart, ent.RootPart.Position
-                if On('Fly') or workspace:Raycast(targetPos, Vector3.new(0, -70, 0), rayCheck) then
-                    local factor, localPosition = 0, root.Position
-                    if ent ~= oldent then ang = math.deg(select(2, CFrame.lookAt(targetPos, localPosition):ToEulerAnglesYXZ())) end
-                    local yFactor = math.abs(localPosition.Y - targetPos.Y) * (Opt('TargetStrafe', 'YFactor', 100) / 100)
-                    local entityPos = Vector3.new(targetPos.X, localPosition.Y, targetPos.Z)
-                    local newPos = entityPos + (CFrame.Angles(0, math.rad(ang), 0).LookVector * (Opt('TargetStrafe', 'StrafeRange', 18) - yFactor))
-                    if not On('Fly') and not workspace:Raycast(newPos, Vector3.new(0, -70, 0), rayCheck) then
-                        newPos = entityPos
-                        factor = 40
-                    end
-                    ang += factor % 360
-                    vec = ((newPos - localPosition) * Vector3.new(1, 0, 1)).Unit
-                    vec = vec == vec and vec or Vector3.zero
-                else
-                    ent = nil
-                end
+            if Opt('TargetStrafe', 'Version', 'v1') == 'v2' then
+                ang, oldent = strafeV2(ang, oldent)
+            else
+                ang, oldent = strafeV1(ang, oldent)
             end
-            TargetStrafeVector = ent and vec or nil
-            oldent = ent
         end))
-    end, function() TargetStrafeVector = nil end)
+    end, function() TargetStrafeVector = nil strafeDriving = false end)
 end
 
 -- AutoQueue ------------------------------------------------------------

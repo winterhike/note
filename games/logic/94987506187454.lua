@@ -204,9 +204,15 @@ do
 
     local TS = Feature("Blatant", "TargetStrafe")
     TS:Targets({ Players = true, Walls = true })
+    TS:Dropdown({ Name = "Version", Opt = "Version", Items = { "v1", "v2" }, Default = "v1" })
     TS:Slider({ Name = "Search Range", Opt = "SearchRange", Min = 1, Max = 30, Default = 24, Suffix = "m" })
     TS:Slider({ Name = "Strafe Range", Opt = "StrafeRange", Min = 1, Max = 30, Default = 18, Suffix = "m" })
     TS:Slider({ Name = "Y Factor", Opt = "YFactor", Min = 0, Max = 100, Default = 100, Suffix = "%" })
+    -- v2-only options (ignored by v1)
+    TS:Toggle({ Name = "Sticky (v2)", Opt = "Sticky", Default = false })
+    TS:Slider({ Name = "Orbit Speed (v2)", Opt = "Speed", Min = 1, Max = 150, Default = 60, Suffix = "m" })
+    TS:Slider({ Name = "Rotation Speed (v2)", Opt = "RotationSpeed", Min = 1, Max = 40, Default = 12 })
+    TS:Slider({ Name = "Prediction (v2)", Opt = "Prediction", Min = 0, Max = 1, Decimal = 100, Default = 0 })
 end
 -- Utility
 do
