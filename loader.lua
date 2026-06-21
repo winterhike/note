@@ -5,7 +5,7 @@
     Caches files locally in the workspace folder "banknote".
 ]]
 
-local VERSION = "1.2.7"
+local VERSION = "1.2.8"
 local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 

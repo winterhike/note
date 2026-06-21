@@ -5060,10 +5060,13 @@ local Library = {
                     return out
                 end
 
-                -- find an existing page (tab) by name, else create it
+                -- find an existing page (tab) by name, case-insensitively, so
+                -- Category "Misc"/"misc"/"MISC" all land in the real tab; only
+                -- create a new tab if nothing matches.
                 local function getOrCreatePage(name)
+                    local want = tostring(name):lower():gsub("%s+", "")
                     for _, p in ipairs(Self.Pages or {}) do
-                        if p.Name == name then return p end
+                        if tostring(p.Name):lower():gsub("%s+", "") == want then return p end
                     end
                     return Self:Page({Name = name})
                 end
