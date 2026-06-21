@@ -581,15 +581,23 @@ run(function()
 	-- no controller-based feature can work regardless of discovery succeeding.
 	local liveAction = redline[redline.ActionController]
 	local liveMove = redline[redline.MoveController]
-	print('[banknote/REDLINER] live controllers:',
-		'Action=' .. tostring(liveAction ~= nil),
-		'Move=' .. tostring(liveMove ~= nil),
-		'ClassesCount=' .. tostring((function()
-			local c = resolveClasses()
-			local n = 0
-			if type(c) == 'table' then for _ in pairs(c) do n += 1 end end
-			return n
-		end)()))
+	local velType = 'n/a'
+	if liveMove ~= nil then
+		local ok, v = pcall(function() return liveMove[redline.VelocityName] end)
+		velType = ok and typeof(v) or 'err'
+	end
+	local classesCount = (function()
+		local c = resolveClasses()
+		local n = 0
+		if type(c) == 'table' then for _ in pairs(c) do n += 1 end end
+		return n
+	end)()
+	local report = ('Action=%s Move=%s Vel(%s)=%s Classes=%d'):format(
+		tostring(liveAction ~= nil), tostring(liveMove ~= nil),
+		tostring(redline.VelocityName), velType, classesCount)
+	print('[banknote/REDLINER] live controllers:', report)
+	-- on-screen so it's visible even with the console filtered to errors only
+	pcall(function() vape:CreateNotification('REDLINER state', report, 12) end)
 
 	local kills = sessioninfo:AddItem('Kills')
 	local deaths = sessioninfo:AddItem('Deaths')
