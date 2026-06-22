@@ -9,6 +9,31 @@
 --
 -- Marker for the loader: BanknoteLibrary
 --======================================================================
+-- Neutralize stale desync / fake-position / crosshair / camlock state from a
+-- previous run FIRST (before the load guard). The desync "void spam" loops and
+-- the crosshair render loop are connected unconditionally and check these
+-- getgenv flags every frame; the original used `getgenv().x = getgenv().x or {}`
+-- so a re-inject kept old enabled=true state, causing the constant void
+-- teleporting and the crosshair error spam. Clearing the flags here stops both
+-- immediately, even on a re-inject (no rejoin needed).
+do
+    for _, key in ipairs({ "fpos", "csync", "network" }) do
+        local tbl = getgenv()[key]
+        if type(tbl) == "table" then
+            pcall(function()
+                tbl.enabled = false
+                tbl.velocity_enabled = false
+                tbl.VisualizeEnabled = false
+            end)
+        end
+    end
+    if type(getgenv().crosshair) == "table" then
+        pcall(function() getgenv().crosshair.enabled = false end)
+    end
+    getgenv().lock = false
+    getgenv().locktrgt = nil
+end
+
 if getgenv()._DaHoodLoaded then return end
 getgenv()._DaHoodLoaded = true
 
@@ -195,7 +220,8 @@ local H = (function()
         function tab:section(o)
             o = o or {}
             local nm = tostring(o.name or "section")
-            if nm:lower():gsub("%s+", "") == "esp" then return dummy() end  -- ESP excluded
+            local nmc = nm:lower():gsub("%s+", "")
+            if nmc == "esp" or nmc == "crosshair" then return dummy() end  -- excluded (ESP + buggy crosshair render loop)
             local side = (o.side == "right") and 2 or 1
             return makeSection(bnPage:Section({ Name = nm, Side = side }))
         end
@@ -7976,7 +8002,7 @@ local bv = {
     fake_pos_resolver_enabled = false,
     glue_resolver_enabled = false,
     current_real_pos = nil,
-    prediction_breaker_enabled = true,
+    prediction_breaker_enabled = false,
     strafe_offset = 25.73971,
     saved_cframe = nil,
     stomp_offset_value = 3,
