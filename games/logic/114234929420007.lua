@@ -110,6 +110,31 @@ local function getEquipped()
     return ok and eq or nil
 end
 
+-- find the LIVE weapon component object (no hook - read-only getgc scan,
+-- cached). The attribute can be stale on Rounds; the live object is exact.
+local _wpnCache
+local function getLiveWeapon()
+    if _wpnCache then
+        local ok, id = pcall(function() return _wpnCache.Identifier end)
+        if ok and type(id) == "string" then return _wpnCache end
+        _wpnCache = nil
+    end
+    local ok, gc = pcall(getgc, true)
+    if not ok then return nil end
+    for _, v in next, gc do
+        if type(v) == "table" then
+            local good = pcall(function()
+                return type(v.Identifier) == "string"
+                    and type(v.Rounds) == "number"
+                    and type(v.Capacity) == "number"
+                    and v.Properties ~= nil
+            end)
+            if good then _wpnCache = v; return v end
+        end
+    end
+    return nil
+end
+
 -- shot origin = current weapon muzzle, else head height
 local function getMuzzle()
     local char = lplr.Character
@@ -155,21 +180,43 @@ end
 -- self-fire one shot at a part (no hooks - direct remote calls)
 local function fireAt(part)
     if not ShootSend then return end
+    local wpn = getLiveWeapon()
     local eq = getEquipped()
-    if not eq or not eq.Identifier then return end
-    local origin = getMuzzle()
+    local identifier, capacity, rounds, hand, scoped, origin
+    if wpn then
+        local ok = pcall(function()
+            identifier = wpn.Identifier
+            capacity   = wpn.Capacity
+            rounds     = wpn.Rounds
+            hand       = wpn.ShootingHand or "Right"
+            scoped     = wpn.IsSniperScoped and true or false
+        end)
+        if not ok then wpn = nil end
+        -- live muzzle from the weapon's viewmodel if present
+        pcall(function()
+            local v = wpn and wpn.Viewmodel
+            local mp = v and (v:FindFirstChild("MuzzlePart", true) or v:FindFirstChild("MuzzlePartR", true))
+            if mp and mp:IsA("BasePart") then origin = mp.Position end
+        end)
+    end
+    if not identifier and eq then
+        identifier, capacity, rounds, hand, scoped = eq.Identifier, eq.Capacity, eq.Rounds, "Right", false
+    end
+    if not identifier then return end
+    origin = origin or getMuzzle()
     if not origin then return end
+
     local dir = (part.Position - origin)
     if LookSend then
         local ld = (part.Position - camera.CFrame.Position).Unit
         pcall(LookSend, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
     end
     pcall(ShootSend, {
-        IsSniperScoped = false,
-        ShootingHand   = "Right",
-        Identifier     = eq.Identifier,
-        Capacity       = eq.Capacity or 30,
-        Rounds         = eq.Rounds or 1,
+        IsSniperScoped = scoped or false,
+        ShootingHand   = hand or "Right",
+        Identifier     = identifier,
+        Capacity       = capacity or 30,
+        Rounds         = rounds or 1,
         Bullets        = { {
             Direction = dir.Unit,
             Origin    = origin,
@@ -180,6 +227,24 @@ local function fireAt(part)
             } },
         } },
     })
+end
+
+-- closest enemy by 3D world distance (for ragebot - 360, ignores screen)
+local function worldNearestEnemy(want, maxDist, teamCheck)
+    local myRoot = lplr.Character and lplr.Character:FindFirstChild("HumanoidRootPart")
+    local myPos = (myRoot and myRoot.Position) or camera.CFrame.Position
+    local best, bd
+    for _, p in ipairs(Players:GetPlayers()) do
+        if isEnemy(p, teamCheck) then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            local part = hitPart(p.Character, want)
+            if hum and hum.Health > 0 and part then
+                local dist = (myPos - part.Position).Magnitude
+                if dist <= maxDist and (not bd or dist < bd) then best, bd = part, dist end
+            end
+        end
+    end
+    return best
 end
 
 --======================================================================
@@ -207,12 +272,12 @@ RunService.Heartbeat:Connect(function()
     if part then saLast = os.clock(); fireAt(part) end
 end)
 
--- Ragebot: auto-fires (no click), through walls, wider FOV
+-- Ragebot: auto-fires (no click), through walls, 3D world targeting
 local rbLast = 0
 RunService.Heartbeat:Connect(function()
     if not FEAT.Ragebot or not ShootSend then return end
     if os.clock() - rbLast < 60 / math.max(FEAT.RB_RPM, 1) then return end
-    local part = nearestEnemyPart(FEAT.RB_HitPart, FEAT.RB_FOV, false, FEAT.RB_MaxDist, FEAT.RB_TeamCheck)
+    local part = worldNearestEnemy(FEAT.RB_HitPart, FEAT.RB_MaxDist, FEAT.RB_TeamCheck)
     if part then rbLast = os.clock(); fireAt(part) end
 end)
 
@@ -307,7 +372,6 @@ addToggle(aimS, "Aim Key Only (RMB)", "SA_AimKeyOnly", false)
 
 addToggle(rageS, "Ragebot (auto-fire, through walls)", "Ragebot", false)
 addDropdown(rageS, "Hit Part", "RB_HitPart", { "Head", "UpperTorso", "Torso", "HumanoidRootPart" })
-addSlider(rageS, "FOV", "RB_FOV", 50, 1200, 600, 1, "px")
 addSlider(rageS, "Fire Rate", "RB_RPM", 60, 1500, 800, 1, "rpm")
 addSlider(rageS, "Max Distance", "RB_MaxDist", 50, 2000, 1000, 1, " studs")
 addToggle(rageS, "Team Check", "RB_TeamCheck", true)
