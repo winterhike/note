@@ -27,6 +27,13 @@ do
             end)
         end
     end
+    -- csync's Heartbeat loop re-derives `enabled` from `selectedMode` every
+    -- frame (enabled = selectedMode ~= 'CLICK ME TO DISABLE DESYNC'), so just
+    -- clearing enabled is instantly overwritten. Reset the mode sentinel too,
+    -- otherwise it keeps void-spamming your character underground.
+    if type(getgenv().csync) == "table" then
+        pcall(function() getgenv().csync.selectedMode = 'CLICK ME TO DISABLE DESYNC' end)
+    end
     if type(getgenv().crosshair) == "table" then
         pcall(function() getgenv().crosshair.enabled = false end)
     end
