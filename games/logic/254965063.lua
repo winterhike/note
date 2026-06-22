@@ -17,7 +17,7 @@ if getgenv()._HelperMenuGuard then
 end
 getgenv()._HelperBanknoteLoaded = true
 
-local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
+local BASE_URL = "https://raw.githubusercontent.com/winterhike/banknote-hub/refs/heads/master/"
 
 local BN = getgenv().BanknoteLibrary
 assert(BN, "[banknote] BanknoteLibrary not set by loader")
@@ -79,13 +79,13 @@ end
 -- latest commit SHA (commit-pinned raw URLs are immutable and never stale).
 local function helperURL()
     local okSha, body = pcall(function()
-        return game:HttpGet("https://api.github.com/repos/endmylifehahahahahahahahaha/banknote-hub/commits/master")
+        return game:HttpGet("https://api.github.com/repos/winterhike/banknote-hub/commits/master")
     end)
     if okSha and type(body) == "string" then
         local sha = body:match('"sha"%s*:%s*"(%x+)"')
         if sha then
             log("pinned to commit", sha:sub(1, 7))
-            return "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/" .. sha .. "/pfH/helper.lua"
+            return "https://raw.githubusercontent.com/winterhike/banknote-hub/" .. sha .. "/pfH/helper.lua"
         end
     end
     log("commit SHA unavailable, falling back to master (may be cached)")

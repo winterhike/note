@@ -9,7 +9,7 @@
 -- NOTE: the string "BanknoteLibrary" below is what the loader scans for to
 -- classify this as a full-logic game (builds its own UI). Keep it present.
 --======================================================================
-local BASE_URL = "https://raw.githubusercontent.com/endmylifehahahahahahahahaha/banknote-hub/refs/heads/master/"
+local BASE_URL = "https://raw.githubusercontent.com/winterhike/banknote-hub/refs/heads/master/"
 
 assert(getgenv().BanknoteLibrary, "[banknote] BanknoteLibrary not set by loader")
 
