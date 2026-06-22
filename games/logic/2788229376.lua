@@ -158,12 +158,17 @@ local H = (function()
 
         function sec:dropdown(o)
             o = o or {}
+            local items = o.items or {}
             local default = o.default
-            if o.multi and type(default) ~= "table" then default = default or {} end
+            if o.multi then
+                if type(default) ~= "table" then default = default or {} end
+            elseif default == nil and items[1] ~= nil then
+                default = items[1]  -- avoid empty "none" dropdowns
+            end
             setflag(o.flag, default)
             local bn = bnSec:Dropdown({
                 Name = tostring(o.name or "dropdown"), Flag = nextFlag(o),
-                Items = o.items or {}, Default = default, Multi = o.multi or false,
+                Items = items, Default = default, Multi = o.multi or false,
                 Callback = function(val) setflag(o.flag, val) if o.callback then pcall(o.callback, val) end end
             })
             return elem(bn)

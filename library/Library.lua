@@ -1784,10 +1784,15 @@ local Library = {
                 Default = "Toggle",
                 Callback = function(Value)
                     Keybind.Mode = Value
-                    Keybind:SetMode()
 
                     if Value == "Always" then 
+                        -- only Press fires the callback (once, with true). Calling
+                        -- SetMode first would double-fire it (Toggled=false, then
+                        -- true), which cancels out for toggle/flip-style keybind
+                        -- callbacks (broke "Always" for several features).
                         Keybind:Press(true)
+                    else
+                        Keybind:SetMode()
                     end
 
                     Update()
