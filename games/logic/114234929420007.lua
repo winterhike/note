@@ -123,7 +123,12 @@ local function hitPart(char, want)
 end
 
 --======================================================================
--- SILENT AIM (field-swap on the cached Send wrapper - no hookfunction)
+-- SILENT AIM (field-swap, no hooks)
+--   Server validates shot direction vs the streamed UpdateLookAngle (~few
+--   degrees tolerance). So we OVERRIDE the game's look-angle sends to smoothly
+--   track the target (continuous, human-like, riding the natural 30/s cadence)
+--   and only redirect the bullet once the reported look has converged on the
+--   target within tolerance. No teleporting the look = passes the check.
 --======================================================================
 do
     local ok, Remotes = pcall(require, ReplicatedStorage.Database.Security.Remotes)
@@ -132,6 +137,9 @@ do
         local lookPkt = Remotes.Character and Remotes.Character.UpdateLookAngle
         local origSend = sw.Send
         local origLook = lookPkt and lookPkt.Send
+
+        FEAT.LookSmooth = FEAT.LookSmooth or 0.25   -- 0..1 per look-send
+        FEAT.Tolerance  = FEAT.Tolerance  or 0.06   -- rad (~3.4deg) shot/look match
 
         local function nearestHead()
             local center = camera.ViewportSize / 2
@@ -152,27 +160,57 @@ do
             return best
         end
 
+        local function dirToAngles(dir) return math.atan2(-dir.X, -dir.Z), dir.Y end
+        local function lerpAngle(a, b, t)
+            local d = (b - a + math.pi) % (2 * math.pi) - math.pi
+            return a + d * t
+        end
+
+        -- last look-angles we actually reported to the server
+        local lastH, lastV = 0, 0
+
+        -- override outgoing look-angle to smoothly track the target
+        if lookPkt and origLook then
+            lookPkt.Send = function(p, ...)
+                pcall(function()
+                    if FEAT.SilentAim and type(p) == "table" then
+                        local part = nearestHead()
+                        if part then
+                            local th, tv = dirToAngles((part.Position - camera.CFrame.Position).Unit)
+                            p.HorizontalAngle = lerpAngle(p.HorizontalAngle, th, FEAT.LookSmooth)
+                            p.VerticalLook    = p.VerticalLook + (tv - p.VerticalLook) * FEAT.LookSmooth
+                        end
+                    end
+                    lastH, lastV = p.HorizontalAngle, p.VerticalLook
+                end)
+                return origLook(p, ...)
+            end
+        end
+
         sw.Send = function(pkt, ...)
             pcall(function()
                 if FEAT.SilentAim and type(pkt) == "table" and pkt.Bullets then
                     if FEAT.HitChance < 100 and math.random(1, 100) > FEAT.HitChance then return end
                     local part = nearestHead()
                     if part then
-                        if FEAT.SpoofLook and origLook then
-                            local ld = (part.Position - camera.CFrame.Position).Unit
-                            pcall(origLook, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
-                        end
-                        for _, b in ipairs(pkt.Bullets) do
-                            local dir = (part.Position - b.Origin)
-                            b.Direction = dir.Unit
-                            b.Hits = { { Instance = part, Position = part.Position, Normal = v3(0,0,1), Material = "Plastic", Distance = dir.Magnitude, Exit = false } }
+                        -- only redirect once the reported look has converged on
+                        -- the target within tolerance (else shots stay genuine)
+                        local th, tv = dirToAngles((part.Position - camera.CFrame.Position).Unit)
+                        local dh = math.abs((th - lastH + math.pi) % (2 * math.pi) - math.pi)
+                        local dv = math.abs(tv - lastV)
+                        if dh <= FEAT.Tolerance and dv <= FEAT.Tolerance then
+                            for _, b in ipairs(pkt.Bullets) do
+                                local dir = (part.Position - b.Origin)
+                                b.Direction = dir.Unit
+                                b.Hits = { { Instance = part, Position = part.Position, Normal = v3(0,0,1), Material = "Plastic", Distance = dir.Magnitude, Exit = false } }
+                            end
                         end
                     end
                 end
             end)
             return origSend(pkt, ...)
         end
-        log("silent aim armed (field-swap)")
+        log("silent aim armed (smooth look-tracking)")
     else
         log("WARN: could not arm silent aim (Remotes not found)")
     end
