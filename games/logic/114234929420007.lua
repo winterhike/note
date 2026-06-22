@@ -123,34 +123,28 @@ local function hitPart(char, want)
 end
 
 --======================================================================
--- SILENT AIM (basic - ShootWeapon hit redirect only, no look-angle hooking)
---   Server validates shot direction vs your real look angle (~few degrees).
---   So this only snaps the bullet to a target that is ALREADY within that
---   tolerance of where you're aiming (closet aim). No UpdateLookAngle hook,
---   nothing "major" touched - just the one hit field on your own shot.
+-- SILENT AIM (field-swap on the cached Send wrapper - no hookfunction)
 --======================================================================
 do
     local ok, Remotes = pcall(require, ReplicatedStorage.Database.Security.Remotes)
     if ok and Remotes and Remotes.Inventory and Remotes.Inventory.ShootWeapon then
         local sw = Remotes.Inventory.ShootWeapon
+        local lookPkt = Remotes.Character and Remotes.Character.UpdateLookAngle
         local origSend = sw.Send
+        local origLook = lookPkt and lookPkt.Send
 
-        FEAT.AimTolerance = FEAT.AimTolerance or 0.07   -- rad (~4deg) max snap
-
-        -- nearest enemy hit-part within the angular tolerance of the real aim
-        local function targetInCone()
-            local camCF = camera.CFrame
-            local look = camCF.LookVector
-            local best, bestDot
+        local function nearestHead()
+            local center = camera.ViewportSize / 2
+            local best, bd
             for _, p in ipairs(Players:GetPlayers()) do
                 if isEnemy(p, FEAT.TeamCheck) then
                     local hum = p.Character:FindFirstChildOfClass("Humanoid")
                     local part = hitPart(p.Character, FEAT.HitPart)
                     if hum and hum.Health > 0 and part then
-                        local dir = (part.Position - camCF.Position).Unit
-                        local dot = look:Dot(dir)                 -- cos(angle)
-                        if dot > math.cos(FEAT.AimTolerance) and (not bestDot or dot > bestDot) then
-                            best, bestDot = part, dot
+                        local sp, on = camera:WorldToViewportPoint(part.Position)
+                        if on then
+                            local d = (v2(sp.X, sp.Y) - center).Magnitude
+                            if d <= FEAT.FOV and (not bd or d < bd) then best, bd = part, d end
                         end
                     end
                 end
@@ -161,8 +155,13 @@ do
         sw.Send = function(pkt, ...)
             pcall(function()
                 if FEAT.SilentAim and type(pkt) == "table" and pkt.Bullets then
-                    local part = targetInCone()
+                    if FEAT.HitChance < 100 and math.random(1, 100) > FEAT.HitChance then return end
+                    local part = nearestHead()
                     if part then
+                        if FEAT.SpoofLook and origLook then
+                            local ld = (part.Position - camera.CFrame.Position).Unit
+                            pcall(origLook, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
+                        end
                         for _, b in ipairs(pkt.Bullets) do
                             local dir = (part.Position - b.Origin)
                             b.Direction = dir.Unit
@@ -173,7 +172,7 @@ do
             end)
             return origSend(pkt, ...)
         end
-        log("silent aim armed (basic closet)")
+        log("silent aim armed (field-swap)")
     else
         log("WARN: could not arm silent aim (Remotes not found)")
     end
