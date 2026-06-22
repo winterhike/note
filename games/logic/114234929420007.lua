@@ -123,36 +123,34 @@ local function hitPart(char, want)
 end
 
 --======================================================================
--- SILENT AIM (field-swap, no hooks)
---   Server validates shot direction vs the streamed UpdateLookAngle (~few
---   degrees tolerance). So we OVERRIDE the game's look-angle sends to smoothly
---   track the target (continuous, human-like, riding the natural 30/s cadence)
---   and only redirect the bullet once the reported look has converged on the
---   target within tolerance. No teleporting the look = passes the check.
+-- SILENT AIM (basic - ShootWeapon hit redirect only, no look-angle hooking)
+--   Server validates shot direction vs your real look angle (~few degrees).
+--   So this only snaps the bullet to a target that is ALREADY within that
+--   tolerance of where you're aiming (closet aim). No UpdateLookAngle hook,
+--   nothing "major" touched - just the one hit field on your own shot.
 --======================================================================
 do
     local ok, Remotes = pcall(require, ReplicatedStorage.Database.Security.Remotes)
     if ok and Remotes and Remotes.Inventory and Remotes.Inventory.ShootWeapon then
         local sw = Remotes.Inventory.ShootWeapon
-        local lookPkt = Remotes.Character and Remotes.Character.UpdateLookAngle
         local origSend = sw.Send
-        local origLook = lookPkt and lookPkt.Send
 
-        FEAT.LookSmooth = FEAT.LookSmooth or 0.25   -- 0..1 per look-send
-        FEAT.Tolerance  = FEAT.Tolerance  or 0.06   -- rad (~3.4deg) shot/look match
+        FEAT.AimTolerance = FEAT.AimTolerance or 0.07   -- rad (~4deg) max snap
 
-        local function nearestHead()
-            local center = camera.ViewportSize / 2
-            local best, bd
+        -- nearest enemy hit-part within the angular tolerance of the real aim
+        local function targetInCone()
+            local camCF = camera.CFrame
+            local look = camCF.LookVector
+            local best, bestDot
             for _, p in ipairs(Players:GetPlayers()) do
                 if isEnemy(p, FEAT.TeamCheck) then
                     local hum = p.Character:FindFirstChildOfClass("Humanoid")
                     local part = hitPart(p.Character, FEAT.HitPart)
                     if hum and hum.Health > 0 and part then
-                        local sp, on = camera:WorldToViewportPoint(part.Position)
-                        if on then
-                            local d = (v2(sp.X, sp.Y) - center).Magnitude
-                            if d <= FEAT.FOV and (not bd or d < bd) then best, bd = part, d end
+                        local dir = (part.Position - camCF.Position).Unit
+                        local dot = look:Dot(dir)                 -- cos(angle)
+                        if dot > math.cos(FEAT.AimTolerance) and (not bestDot or dot > bestDot) then
+                            best, bestDot = part, dot
                         end
                     end
                 end
@@ -160,57 +158,22 @@ do
             return best
         end
 
-        local function dirToAngles(dir) return math.atan2(-dir.X, -dir.Z), dir.Y end
-        local function lerpAngle(a, b, t)
-            local d = (b - a + math.pi) % (2 * math.pi) - math.pi
-            return a + d * t
-        end
-
-        -- last look-angles we actually reported to the server
-        local lastH, lastV = 0, 0
-
-        -- override outgoing look-angle to smoothly track the target
-        if lookPkt and origLook then
-            lookPkt.Send = function(p, ...)
-                pcall(function()
-                    if FEAT.SilentAim and type(p) == "table" then
-                        local part = nearestHead()
-                        if part then
-                            local th, tv = dirToAngles((part.Position - camera.CFrame.Position).Unit)
-                            p.HorizontalAngle = lerpAngle(p.HorizontalAngle, th, FEAT.LookSmooth)
-                            p.VerticalLook    = p.VerticalLook + (tv - p.VerticalLook) * FEAT.LookSmooth
-                        end
-                    end
-                    lastH, lastV = p.HorizontalAngle, p.VerticalLook
-                end)
-                return origLook(p, ...)
-            end
-        end
-
         sw.Send = function(pkt, ...)
             pcall(function()
                 if FEAT.SilentAim and type(pkt) == "table" and pkt.Bullets then
-                    if FEAT.HitChance < 100 and math.random(1, 100) > FEAT.HitChance then return end
-                    local part = nearestHead()
+                    local part = targetInCone()
                     if part then
-                        -- only redirect once the reported look has converged on
-                        -- the target within tolerance (else shots stay genuine)
-                        local th, tv = dirToAngles((part.Position - camera.CFrame.Position).Unit)
-                        local dh = math.abs((th - lastH + math.pi) % (2 * math.pi) - math.pi)
-                        local dv = math.abs(tv - lastV)
-                        if dh <= FEAT.Tolerance and dv <= FEAT.Tolerance then
-                            for _, b in ipairs(pkt.Bullets) do
-                                local dir = (part.Position - b.Origin)
-                                b.Direction = dir.Unit
-                                b.Hits = { { Instance = part, Position = part.Position, Normal = v3(0,0,1), Material = "Plastic", Distance = dir.Magnitude, Exit = false } }
-                            end
+                        for _, b in ipairs(pkt.Bullets) do
+                            local dir = (part.Position - b.Origin)
+                            b.Direction = dir.Unit
+                            b.Hits = { { Instance = part, Position = part.Position, Normal = v3(0,0,1), Material = "Plastic", Distance = dir.Magnitude, Exit = false } }
                         end
                     end
                 end
             end)
             return origSend(pkt, ...)
         end
-        log("silent aim armed (smooth look-tracking)")
+        log("silent aim armed (basic closet)")
     else
         log("WARN: could not arm silent aim (Remotes not found)")
     end
