@@ -21,8 +21,8 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/winterhike/note/refs/
 
 ## Supported games
 
-Phantom Forces, Rivals, REDLINER, D.I.G, and more, plus a universal fallback
-for everything else.
+Phantom Forces, Rivals, REDLINER, D.I.G, Da Hood, and more, plus a universal
+fallback for everything else.
 
 ## Custom luas
 
