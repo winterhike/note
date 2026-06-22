@@ -177,24 +177,27 @@ local H = (function()
         function sec:keybind(o)
             o = o or {}
             local lbl = bnSec:Label({ Name = tostring(o.name or o.display or "keybind") })
-            -- banknote fires a keybind's Callback once synchronously on creation
-            -- (with Toggled=false). Several sample keybinds are toggle-FLIP style
-            -- (they flip state on every call, ignoring the passed value), so that
-            -- creation-fire would flip them ON - e.g. it was enabling the desync
-            -- "Void Spam" mode and flinging the character to ~2M studs. Swallow
-            -- any callback that fires during creation.
-            local ready = false
+            -- banknote fires a keybind's Callback not only on real key presses but
+            -- also on CONFIG changes: once on creation, when a key is bound, and
+            -- when the mode (Toggle/Hold/Always) is switched. Several sample
+            -- callbacks are flip-style (e.g. `_G.keyheld = not _G.keyheld`), so
+            -- those spurious config-time fires would flip/invert the feature
+            -- (that caused the desync void-teleport on load AND inverted Hold).
+            -- Only forward to the sample callback when the keybind's toggled STATE
+            -- actually changes (a real press, or an Always activation).
+            local last = false
             local data = {
                 Name = tostring(o.display or o.name or "keybind"), Flag = nextFlag(o), Mode = "Toggle",
                 Callback = function(toggled)
-                    if not ready then return end
+                    toggled = toggled and true or false
+                    if toggled == last then return end
+                    last = toggled
                     setflag(o.flag, toggled)
                     if o.callback then pcall(o.callback, toggled) end
                 end
             }
             if typeof(o.default) == "EnumItem" then data.Default = o.default end
             local kb = (lbl and lbl.Keybind) and lbl:Keybind(data) or nil
-            ready = true
             return elem(kb)
         end
 
