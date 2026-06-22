@@ -6,7 +6,7 @@
 ]]
 
 local VERSION = "1.3.0"
-local BASE_URL = "https://raw.githubusercontent.com/winterhike/banknote-hub/refs/heads/master/"
+local BASE_URL = "https://raw.githubusercontent.com/winterhike/note/refs/heads/master/"
 local CACHE_FOLDER = "banknote"
 
 -- Universe (GameId) -> canonical config/logic id, for games whose matches run
@@ -29,12 +29,12 @@ end
 -- commit SHA: commit-pinned raw URLs are immutable and always fresh.
 do
     local ok, body = pcall(function()
-        return game:HttpGet("https://api.github.com/repos/winterhike/banknote-hub/commits/master")
+        return game:HttpGet("https://api.github.com/repos/winterhike/note/commits/master")
     end)
     if ok and type(body) == "string" then
         local sha = body:match('"sha"%s*:%s*"(%x+)"')
         if sha then
-            BASE_URL = "https://raw.githubusercontent.com/winterhike/banknote-hub/" .. sha .. "/"
+            BASE_URL = "https://raw.githubusercontent.com/winterhike/note/" .. sha .. "/"
             print("[$$ banknote $$] pinned to commit " .. sha:sub(1, 7))
         end
     end

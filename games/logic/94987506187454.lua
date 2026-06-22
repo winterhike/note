@@ -29,15 +29,15 @@ local lplr = Players.LocalPlayer
 local function log(...) print("[banknote/REDLINER]", ...) end
 local function notify(msg) pcall(function() BN:Notification(tostring(msg), 5) end) end
 
-local BASE = "https://raw.githubusercontent.com/winterhike/banknote-hub/refs/heads/master/"
+local BASE = "https://raw.githubusercontent.com/winterhike/note/refs/heads/master/"
 do
     local ok, body = pcall(function()
-        return game:HttpGet("https://api.github.com/repos/winterhike/banknote-hub/commits/master")
+        return game:HttpGet("https://api.github.com/repos/winterhike/note/commits/master")
     end)
     if ok and type(body) == "string" then
         local sha = body:match('"sha"%s*:%s*"(%x+)"')
         if sha then
-            BASE = "https://raw.githubusercontent.com/winterhike/banknote-hub/" .. sha .. "/"
+            BASE = "https://raw.githubusercontent.com/winterhike/note/" .. sha .. "/"
             log("pinned to commit", sha:sub(1, 7))
         end
     end
