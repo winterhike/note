@@ -35,12 +35,21 @@ local function log(...) print("[banknote/BloxStrike]", ...) end
 -- feature state
 --======================================================================
 local FEAT = {
+    -- silent aim (manual: rides your click, wall check, FOV)
     SilentAim   = false,
-    HitPart     = "Head",
-    FOV         = 120,
-    RPM         = 600,        -- self-fire cap (rounds/min)
-    TeamCheck   = true,
-    AimKeyOnly  = false,      -- only while holding mouse2
+    SA_HitPart  = "Head",
+    SA_FOV      = 120,
+    SA_RPM      = 600,
+    SA_TeamCheck= true,
+    SA_WallCheck= true,
+    SA_AimKeyOnly = false,    -- only while holding mouse2
+    -- ragebot (auto-fires, through walls, no click needed)
+    Ragebot     = false,
+    RB_HitPart  = "Head",
+    RB_FOV      = 600,
+    RB_RPM      = 800,
+    RB_TeamCheck= true,
+    RB_MaxDist  = 1000,
     -- esp
     ESP         = false,
     BoxESP      = true,
@@ -85,6 +94,14 @@ local function hitPart(char, want)
         or char:FindFirstChild("HumanoidRootPart")
 end
 
+-- wall check: clear line of sight from the camera to the part
+local losParams = RaycastParams.new()
+losParams.FilterType = Enum.RaycastFilterType.Exclude
+local function losClear(fromPos, part)
+    losParams.FilterDescendantsInstances = { lplr.Character, part.Parent }
+    return workspace:Raycast(fromPos, part.Position - fromPos, losParams) == nil
+end
+
 -- live equipped weapon state (read-only attribute, no hook)
 local function getEquipped()
     local j = lplr:GetAttribute("CurrentEquipped")
@@ -110,23 +127,59 @@ local function getMuzzle()
     return hrp and (hrp.Position + v3(0, 1.5, 0))
 end
 
-local function nearestEnemyPart()
+local function nearestEnemyPart(want, fov, requireVisible, maxDist, teamCheck)
     local center = camera.ViewportSize / 2
+    local camPos = camera.CFrame.Position
     local best, bd
     for _, p in ipairs(Players:GetPlayers()) do
-        if isEnemy(p, FEAT.TeamCheck) then
+        if isEnemy(p, teamCheck) then
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            local part = hitPart(p.Character, FEAT.HitPart)
+            local part = hitPart(p.Character, want)
             if hum and hum.Health > 0 and part then
                 local sp, on = camera:WorldToViewportPoint(part.Position)
                 if on then
                     local d = (v2(sp.X, sp.Y) - center).Magnitude
-                    if d <= FEAT.FOV and (not bd or d < bd) then best, bd = part, d end
+                    local dist = (camPos - part.Position).Magnitude
+                    if d <= fov and (not maxDist or dist <= maxDist)
+                        and (not requireVisible or losClear(camPos, part))
+                        and (not bd or d < bd) then
+                        best, bd = part, d
+                    end
                 end
             end
         end
     end
     return best
+end
+
+-- self-fire one shot at a part (no hooks - direct remote calls)
+local function fireAt(part)
+    if not ShootSend then return end
+    local eq = getEquipped()
+    if not eq or not eq.Identifier then return end
+    local origin = getMuzzle()
+    if not origin then return end
+    local dir = (part.Position - origin)
+    if LookSend then
+        local ld = (part.Position - camera.CFrame.Position).Unit
+        pcall(LookSend, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
+    end
+    pcall(ShootSend, {
+        IsSniperScoped = false,
+        ShootingHand   = "Right",
+        Identifier     = eq.Identifier,
+        Capacity       = eq.Capacity or 30,
+        Rounds         = eq.Rounds or 1,
+        Bullets        = { {
+            Direction = dir.Unit,
+            Origin    = origin,
+            Hits      = { {
+                Instance = part, Position = part.Position,
+                Normal = v3(0, 0, 1), Material = "Plastic",
+                Distance = dir.Magnitude, Exit = false,
+            } },
+        } },
+    })
 end
 
 --======================================================================
@@ -140,52 +193,27 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then firing = false end
 end)
 local function aimHeld()
-    if not FEAT.AimKeyOnly then return true end
+    if not FEAT.SA_AimKeyOnly then return true end
     return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
 end
 
-local lastShot = 0
+-- Silent Aim: rides YOUR shots, wall-checked, FOV-limited
+local saLast = 0
 RunService.Heartbeat:Connect(function()
     if not FEAT.SilentAim or not ShootSend then return end
     if not firing or not aimHeld() then return end
-    local interval = 60 / math.max(FEAT.RPM, 1)
-    if os.clock() - lastShot < interval then return end
+    if os.clock() - saLast < 60 / math.max(FEAT.SA_RPM, 1) then return end
+    local part = nearestEnemyPart(FEAT.SA_HitPart, FEAT.SA_FOV, FEAT.SA_WallCheck, nil, FEAT.SA_TeamCheck)
+    if part then saLast = os.clock(); fireAt(part) end
+end)
 
-    local part = nearestEnemyPart()
-    if not part then return end
-    local eq = getEquipped()
-    if not eq or not eq.Identifier then return end
-    local origin = getMuzzle()
-    if not origin then return end
-
-    lastShot = os.clock()
-    local dir = (part.Position - origin)
-
-    -- matching look-angle so the shot is server-plausible
-    if LookSend then
-        local ld = (part.Position - camera.CFrame.Position).Unit
-        pcall(LookSend, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
-    end
-
-    pcall(ShootSend, {
-        IsSniperScoped = false,
-        ShootingHand   = "Right",
-        Identifier     = eq.Identifier,
-        Capacity       = eq.Capacity or 30,
-        Rounds         = eq.Rounds or 1,
-        Bullets        = { {
-            Direction = dir.Unit,
-            Origin    = origin,
-            Hits      = { {
-                Instance = part,
-                Position = part.Position,
-                Normal   = v3(0, 0, 1),
-                Material = "Plastic",
-                Distance = dir.Magnitude,
-                Exit     = false,
-            } },
-        } },
-    })
+-- Ragebot: auto-fires (no click), through walls, wider FOV
+local rbLast = 0
+RunService.Heartbeat:Connect(function()
+    if not FEAT.Ragebot or not ShootSend then return end
+    if os.clock() - rbLast < 60 / math.max(FEAT.RB_RPM, 1) then return end
+    local part = nearestEnemyPart(FEAT.RB_HitPart, FEAT.RB_FOV, false, FEAT.RB_MaxDist, FEAT.RB_TeamCheck)
+    if part then rbLast = os.clock(); fireAt(part) end
 end)
 
 --======================================================================
@@ -247,7 +275,8 @@ pcall(function() window:Watermark({ Name = "$$ banknote $$" }) end)
 pcall(function() window:KeybindList() end)
 
 local combat  = window:Page({ Name = "Combat" })
-local aimS    = combat:Section({ Name = "Silent Aim (no-hook self-fire)", Side = 1 })
+local aimS    = combat:Section({ Name = "Silent Aim", Side = 1 })
+local rageS   = combat:Section({ Name = "Ragebot", Side = 2 })
 local visuals = window:Page({ Name = "Visuals" })
 local espS    = visuals:Section({ Name = "ESP", Side = 1 })
 
@@ -269,11 +298,19 @@ local function addColor(sec, label, key)
 end
 
 addToggle(aimS, "Silent Aim", "SilentAim", false)
-addDropdown(aimS, "Hit Part", "HitPart", { "Head", "UpperTorso", "Torso", "HumanoidRootPart" })
-addSlider(aimS, "FOV", "FOV", 10, 600, 120, 1, "px")
-addSlider(aimS, "Fire Rate", "RPM", 60, 1200, 600, 1, "rpm")
-addToggle(aimS, "Team Check", "TeamCheck", true)
-addToggle(aimS, "Aim Key Only (RMB)", "AimKeyOnly", false)
+addDropdown(aimS, "Hit Part", "SA_HitPart", { "Head", "UpperTorso", "Torso", "HumanoidRootPart" })
+addSlider(aimS, "FOV", "SA_FOV", 10, 600, 120, 1, "px")
+addSlider(aimS, "Fire Rate", "SA_RPM", 60, 1200, 600, 1, "rpm")
+addToggle(aimS, "Wall Check", "SA_WallCheck", true)
+addToggle(aimS, "Team Check", "SA_TeamCheck", true)
+addToggle(aimS, "Aim Key Only (RMB)", "SA_AimKeyOnly", false)
+
+addToggle(rageS, "Ragebot (auto-fire, through walls)", "Ragebot", false)
+addDropdown(rageS, "Hit Part", "RB_HitPart", { "Head", "UpperTorso", "Torso", "HumanoidRootPart" })
+addSlider(rageS, "FOV", "RB_FOV", 50, 1200, 600, 1, "px")
+addSlider(rageS, "Fire Rate", "RB_RPM", 60, 1500, 800, 1, "rpm")
+addSlider(rageS, "Max Distance", "RB_MaxDist", 50, 2000, 1000, 1, " studs")
+addToggle(rageS, "Team Check", "RB_TeamCheck", true)
 
 addToggle(espS, "ESP", "ESP", false)
 addToggle(espS, "Boxes", "BoxESP", true)
