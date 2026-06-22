@@ -17,6 +17,7 @@ local UNIVERSE_MAP = {
     ["104923451"]  = "254965063",   -- Phantom Forces (Console universe)
     ["7265339759"] = "94987506187454", -- REDLINER (all sub-places)
     ["7304084567"] = "98129535207266", -- D.I.G (all sub-places)
+    ["7633926880"] = "114234929420007", -- BloxStrike (all match sub-places)
 }
 
 -- Cache-buster so GitHub's raw CDN always serves the freshest files
