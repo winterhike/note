@@ -62,20 +62,41 @@ local FEAT = {
 }
 
 --======================================================================
--- resolve remotes (require is NOT a hook - we only CALL these)
+-- resolve remotes + InventoryController (require/CALL only - NOT hooks)
+--   ShootWeapon.Send  -> fire a shot (client-authoritative hit reporting)
+--   getCurrentEquipped() -> LIVE loadout (Rounds, Capacity, Identifier...)
+-- The previous build read a stale JSON attribute and sent a static Rounds
+-- value, so the server rejected every shot. We now use the live loadout
+-- object and decrement Rounds exactly like the game does (the root fix).
 --======================================================================
-local ShootSend, LookSend
+local ShootSend
+local InvController, SkinsModule
 do
     local ok, Remotes = pcall(require, ReplicatedStorage.Database.Security.Remotes)
     if ok and Remotes and Remotes.Inventory and Remotes.Inventory.ShootWeapon then
         ShootSend = Remotes.Inventory.ShootWeapon.Send
-        if Remotes.Character and Remotes.Character.UpdateLookAngle then
-            LookSend = Remotes.Character.UpdateLookAngle.Send
-        end
-        log("remotes resolved (self-fire ready)")
+        log("ShootWeapon resolved (self-fire ready)")
     else
-        log("WARN: could not resolve Remotes - silent aim unavailable")
+        log("WARN: could not resolve Remotes - aim unavailable")
     end
+
+    -- InventoryController gives the live loadout + skin re-injection API.
+    -- Direct require first (no getgc). Only if that fails do ONE getgc scan
+    -- (never per-frame - the per-frame getgc(true) was what caused the lag).
+    local ok2, mod = pcall(function() return require(ReplicatedStorage.Controllers.InventoryController) end)
+    if ok2 and type(mod) == "table" and mod.getCurrentEquipped then
+        InvController = mod
+    elseif typeof(getgc) == "function" then
+        for _, v in ipairs(getgc(true)) do
+            if type(v) == "table" and rawget(v, "getCurrentEquipped") and rawget(v, "getCurrentInventory") then
+                InvController = v
+                break
+            end
+        end
+    end
+    if InvController then log("InventoryController resolved") else log("WARN: no InventoryController - aim/skins limited") end
+
+    pcall(function() SkinsModule = require(ReplicatedStorage.Database.Components.Libraries.Skins) end)
 end
 
 --======================================================================
@@ -102,32 +123,46 @@ local function losClear(fromPos, part)
     return workspace:Raycast(fromPos, part.Position - fromPos, losParams) == nil
 end
 
--- live equipped weapon state (read-only attribute, no hook, NO getgc - fast)
-local function getEquipped()
-    local j = lplr:GetAttribute("CurrentEquipped")
-    if not j then return nil end
-    local ok, eq = pcall(function() return HttpService:JSONDecode(j) end)
-    return ok and eq or nil
-end
+-- shot origin is the camera position (matches the game's own shots), then
+-- NaN-masked when sent so server-side origin checks can't pin it. The real
+-- damage comes from the reported Hits (client-authoritative).
+local NAN = v3(0/0, 0/0, 0/0)
 
--- shot origin = current weapon muzzle, else head height
-local function getMuzzle()
-    local char = lplr.Character
-    if not char then return nil end
-    local wm = char:FindFirstChild("WeaponModel")
-    if wm then
-        local mp = wm:FindFirstChild("MuzzlePart", true)
-            or wm:FindFirstChild("MuzzlePartR", true)
-            or wm:FindFirstChild("MuzzlePartL", true)
-        if mp and mp:IsA("BasePart") then return mp.Position end
-    end
-    local head = char:FindFirstChild("Head")
-    if head then return head.Position end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    return hrp and (hrp.Position + v3(0, 1.5, 0))
+-- self-fire one shot at a part (no hooks, no getgc - direct remote call).
+-- Uses the LIVE loadout: pulls Identifier/Capacity/IsSniperScoped/ShootingHand
+-- from getCurrentEquipped() and decrements Rounds exactly like the game so the
+-- server's ammo tracking accepts the shot. THIS is the ragebot fix.
+local function fireAt(part)
+    if not ShootSend or not InvController then return end
+    local L = InvController.getCurrentEquipped()
+    if not L then return end
+    if L.Rounds == nil or L.Rounds <= 0 then return end   -- empty / no gun
+    local origin = camera.CFrame.Position
+    local dir = (part.Position - origin)
+    local mag = dir.Magnitude
+    if mag <= 0 or mag ~= mag then return end
+    L.Rounds = L.Rounds - 1
+    pcall(ShootSend, {
+        IsSniperScoped = L.IsSniperScoped,
+        ShootingHand   = L.ShootingHand,
+        Identifier     = L.Identifier,
+        Capacity       = L.Capacity,
+        Bullets = { [1] = {
+            Direction = dir.Unit,
+            Origin    = origin + NAN,
+            Hits = { [1] = {
+                Distance = mag,
+                Instance = part,
+                Position = part.Position,
+                Normal   = v3(0, 1, 0),
+                Material  = "Plastic",
+                Exit      = false,
+            } },
+        } },
+        Rounds  = L.Rounds,
+        Ragebot = true,
+    })
 end
-
-local function nearestEnemyPart(want, fov, requireVisible, maxDist, teamCheck)
     local center = camera.ViewportSize / 2
     local camPos = camera.CFrame.Position
     local best, bd
@@ -150,36 +185,6 @@ local function nearestEnemyPart(want, fov, requireVisible, maxDist, teamCheck)
         end
     end
     return best
-end
-
--- self-fire one shot at a part (no hooks, no getgc - direct remote calls)
-local function fireAt(part)
-    if not ShootSend then return end
-    local eq = getEquipped()
-    if not eq or not eq.Identifier then return end   -- need a gun equipped
-    local origin = getMuzzle()
-    if not origin then return end
-    local dir = (part.Position - origin)
-    if LookSend then
-        local ld = (part.Position - camera.CFrame.Position).Unit
-        pcall(LookSend, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
-    end
-    pcall(ShootSend, {
-        IsSniperScoped = false,
-        ShootingHand   = "Right",
-        Identifier     = eq.Identifier,
-        Capacity       = eq.Capacity or 30,
-        Rounds         = eq.Rounds or 1,
-        Bullets        = { {
-            Direction = dir.Unit,
-            Origin    = origin,
-            Hits      = { {
-                Instance = part, Position = part.Position,
-                Normal = v3(0, 0, 1), Material = "Plastic",
-                Distance = dir.Magnitude, Exit = false,
-            } },
-        } },
-    })
 end
 
 -- closest enemy by 3D world distance (for ragebot - 360, ignores screen)
@@ -286,6 +291,67 @@ do
 end
 
 --======================================================================
+-- SKIN CHANGER (no hooks): re-inject every inventory weapon with a chosen
+-- skin via InventoryController.removeInventoryItem + newInventoryItem. This
+-- is the same legitimate API the game uses, so there is nothing to detect.
+--======================================================================
+local SKIN = { Enabled = false, SkinName = "", Float = 0, StatTrak = false, KnifeFix = true }
+
+local function reinjectItem(slot, item, equipIdent)
+    if not item or not item.Identifier then return end
+    local vm     = item.Viewmodel or {}
+    local weapon = item.Name
+    local skin   = (SKIN.SkinName ~= "" and SKIN.SkinName) or vm.Skin or "Stock"
+    local id     = item._id
+    -- known-good knife upgrade (keeps a default useful preset)
+    if SKIN.KnifeFix and (weapon == "CT Knife" or weapon == "T Knife") then
+        weapon = "Butterfly Knife"; id = "Butterfly Knife_Stock"
+        if SKIN.SkinName == "" then skin = "Tiger Stripes" end
+    end
+    pcall(function() InvController.removeInventoryItem(item.Identifier) end)
+    pcall(function()
+        InvController.newInventoryItem({
+            slot          = slot,
+            identifier    = item.Identifier,
+            _id           = id,
+            weapon        = weapon,
+            skin          = skin,
+            Float         = SKIN.Float or vm.Float or 0,
+            StatTrack     = SKIN.StatTrak and 1 or 0,
+            NameTag       = nil,
+            OriginalOwner = nil,
+            Charm         = {},
+            Stickers      = {},
+            customProperties = nil,
+            shouldEquip   = (item.Identifier == equipIdent),
+        })
+    end)
+end
+
+local function applySkins()
+    if not InvController or not InvController.getCurrentInventory then return end
+    task.spawn(function()
+        pcall(function() if setthreadidentity then setthreadidentity(2) end end)
+        local inv = InvController.getCurrentInventory()
+        if not inv then return end
+        local eq = InvController.getCurrentEquipped()
+        local equipIdent = eq and eq.Identifier
+        for slot, value in pairs(inv) do
+            if type(value) == "table" and value._items then
+                local item = value._items[1]
+                if item then reinjectItem(slot, item, equipIdent) end
+            end
+        end
+        log("skins applied")
+    end)
+end
+
+-- re-apply on respawn when AutoApply is on
+lplr.CharacterAdded:Connect(function()
+    if SKIN.Enabled then task.delay(2, function() if SKIN.Enabled then applySkins() end end) end
+end)
+
+--======================================================================
 -- UI (gethui-parented by the Library)
 --======================================================================
 local window = BN:Window({ Name = "$$ banknote: BloxStrike $$" })
@@ -337,6 +403,28 @@ addToggle(espS, "Tracers", "TracerESP", false)
 addToggle(espS, "Distance", "DistanceESP", false)
 addToggle(espS, "Team Check", "ESPTeamCheck", true)
 addColor(espS, "ESP Color", "ESPColor")
+
+--======================================================================
+-- Skins page (skin changer for every gun, no hooks)
+--======================================================================
+local skinsPage = window:Page({ Name = "Skins" })
+local skinS     = skinsPage:Section({ Name = "Skin Changer", Side = 1 })
+
+skinS:Toggle({ Name = "Enabled (auto re-apply on spawn)", Flag = uflag(), Default = false,
+    Callback = function(v) SKIN.Enabled = v and true or false; if SKIN.Enabled then applySkins() end end })
+pcall(function()
+    skinS:Textbox({ Name = "Skin Name (blank = keep current)", Flag = uflag(), Default = "", Placeholder = "e.g. Fade",
+        Callback = function(t) SKIN.SkinName = tostring(t or "") end })
+end)
+pcall(function()
+    skinS:Slider({ Name = "Float (wear)", Flag = uflag(), Min = 0, Max = 1, Default = 0, Decimals = 100, Suffix = "",
+        Callback = function(v) SKIN.Float = v end })
+end)
+skinS:Toggle({ Name = "StatTrak", Flag = uflag(), Default = false, Callback = function(v) SKIN.StatTrak = v and true or false end })
+skinS:Toggle({ Name = "Auto Butterfly Knife", Flag = uflag(), Default = true, Callback = function(v) SKIN.KnifeFix = v and true or false end })
+pcall(function()
+    skinS:Button({ Name = "Apply Skins Now", Callback = function() applySkins() end })
+end)
 
 pcall(function() window:Init() end)
 log("loaded (no-hook build)")
