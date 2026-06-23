@@ -68,38 +68,31 @@ local FEAT = {
 
 --======================================================================
 -- resolve remotes + InventoryController (require/CALL only - NOT hooks)
+-- Resolved LAZILY and re-resolved if a reference goes nil, so it survives
+-- across matches/respawns (fixes the "breaks after a couple matches" issue).
 --======================================================================
-local ShootSend, LookSend
-local InvController, SkinsModule
-do
-    local ok, Remotes = pcall(require, ReplicatedStorage.Database.Security.Remotes)
-    if ok and Remotes and Remotes.Inventory and Remotes.Inventory.ShootWeapon then
-        ShootSend = Remotes.Inventory.ShootWeapon.Send
-        if Remotes.Character and Remotes.Character.UpdateLookAngle then
-            LookSend = Remotes.Character.UpdateLookAngle.Send
-        end
-        log("ShootWeapon resolved (self-fire ready)")
-    else
-        log("WARN: could not resolve Remotes - aim unavailable")
-    end
+local Remotes, InvController, SkinsModule
 
-    -- InventoryController gives the LIVE loadout (Rounds/Capacity/Identifier)
-    -- plus the skin re-injection API. Direct require first (no getgc); only if
-    -- that fails do ONE getgc scan (never per-frame - that caused the lag).
-    local ok2, mod = pcall(function() return require(ReplicatedStorage.Controllers.InventoryController) end)
-    if ok2 and type(mod) == "table" and mod.getCurrentEquipped then
-        InvController = mod
-    elseif typeof(getgc) == "function" then
-        for _, v in ipairs(getgc(true)) do
-            if type(v) == "table" and rawget(v, "getCurrentEquipped") and rawget(v, "getCurrentInventory") then
-                InvController = v
-                break
-            end
-        end
-    end
-    if InvController then log("InventoryController resolved") else log("WARN: no InventoryController") end
+local function resolveRemotes()
+    local ok, r = pcall(require, ReplicatedStorage.Database.Security.Remotes)
+    if ok and r and r.Inventory and r.Inventory.ShootWeapon then Remotes = r return true end
+    return false
+end
+local function resolveIC()
+    local ok, m = pcall(function() return require(ReplicatedStorage.Controllers.InventoryController) end)
+    if ok and type(m) == "table" and m.getCurrentEquipped then InvController = m return true end
+    return false
+end
 
-    pcall(function() SkinsModule = require(ReplicatedStorage.Database.Components.Libraries.Skins) end)
+resolveRemotes()
+resolveIC()
+pcall(function() SkinsModule = require(ReplicatedStorage.Database.Components.Libraries.Skins) end)
+log(Remotes and "remotes resolved" or "WARN: no remotes")
+
+-- has a usable shoot remote right now (re-resolves if the cached one died)
+local function ready()
+    if Remotes and Remotes.Inventory and Remotes.Inventory.ShootWeapon then return true end
+    return resolveRemotes()
 end
 
 --======================================================================
@@ -126,12 +119,21 @@ local function losClear(fromPos, part)
     return workspace:Raycast(fromPos, part.Position - fromPos, losParams) == nil
 end
 
--- live equipped weapon state (read-only attribute, no hook, NO getgc - fast)
+-- equipped weapon state. PREFER the live loadout (has the real ShootingHand,
+-- IsSniperScoped, Capacity, Rounds the server validates per-weapon); fall back
+-- to the CurrentEquipped attribute when the live loadout is nil (e.g. between
+-- rounds). Returns the table + whether it was the live one.
 local function getEquipped()
+    if InvController or resolveIC() then
+        local ok, eq = pcall(function() return InvController.getCurrentEquipped() end)
+        if ok and type(eq) == "table" and eq.Identifier then return eq, true end
+    end
     local j = lplr:GetAttribute("CurrentEquipped")
-    if not j then return nil end
-    local ok, eq = pcall(function() return HttpService:JSONDecode(j) end)
-    return ok and eq or nil
+    if type(j) == "string" then
+        local ok, eq = pcall(function() return HttpService:JSONDecode(j) end)
+        if ok and type(eq) == "table" and eq.Identifier then return eq, false end
+    end
+    return nil
 end
 
 -- shot origin = current weapon muzzle, else head, else camera (never nil)
@@ -153,18 +155,22 @@ local function getMuzzle()
     return camera.CFrame.Position
 end
 
--- self-fire one shot at a part (no hooks, no getgc - direct remote calls)
--- THIS IS THE PROVEN WORKING PACKET (commit 900b6e3). Do not change it.
+
+-- self-fire one shot at a part (no hooks, no getgc - direct remote calls).
+-- Uses the live loadout's real per-weapon fields (ShootingHand/IsSniperScoped)
+-- and re-fetches the remote each shot so it survives across matches.
 local function fireAt(part)
-    if not ShootSend then return end
+    if not ready() then return end
     local eq = getEquipped()
     if not eq or not eq.Identifier then return end   -- need a gun equipped
     local origin = getMuzzle()
-    if not origin then return end
     local dir = (part.Position - origin)
-    if LookSend then
+    if dir.Magnitude <= 0 then return end
+    local shoot = Remotes.Inventory.ShootWeapon
+    local look  = Remotes.Character and Remotes.Character.UpdateLookAngle
+    if look then
         local ld = (part.Position - camera.CFrame.Position).Unit
-        pcall(LookSend, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
+        pcall(function() look.Send({ HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y }) end)
     end
     -- build hit list (multipoint: also include the Head for a headshot chance)
     local hits = { {
@@ -182,18 +188,20 @@ local function fireAt(part)
             }
         end
     end
-    pcall(ShootSend, {
-        IsSniperScoped = false,
-        ShootingHand   = "Right",
-        Identifier     = eq.Identifier,
-        Capacity       = eq.Capacity or 30,
-        Rounds         = eq.Rounds or 1,
-        Bullets        = { {
-            Direction = dir.Unit,
-            Origin    = origin,
-            Hits      = hits,
-        } },
-    })
+    pcall(function()
+        shoot.Send({
+            IsSniperScoped = eq.IsSniperScoped or false,
+            ShootingHand   = eq.ShootingHand or "Right",
+            Identifier     = eq.Identifier,
+            Capacity       = eq.Capacity or 30,
+            Rounds         = eq.Rounds or 1,
+            Bullets        = { {
+                Direction = dir.Unit,
+                Origin    = origin,
+                Hits      = hits,
+            } },
+        })
+    end)
 end
 
 local function nearestEnemyPart(want, fov, requireVisible, maxDist, teamCheck)
@@ -271,7 +279,7 @@ end
 -- Silent Aim: rides YOUR shots, wall-checked, FOV-limited
 local saLast = 0
 RunService.Heartbeat:Connect(function()
-    if not FEAT.SilentAim or not ShootSend then return end
+    if not FEAT.SilentAim or not ready() then return end
     if not firing or not aimHeld() then return end
     if os.clock() - saLast < 60 / math.max(FEAT.SA_RPM, 1) then return end
     local part = nearestEnemyPart(FEAT.SA_HitPart, FEAT.SA_FOV, FEAT.SA_WallCheck, nil, FEAT.SA_TeamCheck)
@@ -282,7 +290,7 @@ end)
 -- fires at targets with clear line of sight (still the same remote/packet).
 local rbLast = 0
 RunService.Heartbeat:Connect(function()
-    if not FEAT.Ragebot or not ShootSend then return end
+    if not FEAT.Ragebot or not ready() then return end
     local rpm = (FEAT.GM_SilentRPM and FEAT.GM_RPM) or FEAT.RB_RPM
     if os.clock() - rbLast < 60 / math.max(rpm, 1) then return end
     local part = worldNearestEnemy(FEAT.RB_HitPart, FEAT.RB_TeamCheck, not FEAT.RB_AutoPen, FEAT.RB_Priority)
