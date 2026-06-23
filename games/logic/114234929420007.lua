@@ -63,11 +63,6 @@ local FEAT = {
 
 --======================================================================
 -- resolve remotes + InventoryController (require/CALL only - NOT hooks)
---   ShootWeapon.Send  -> fire a shot (client-authoritative hit reporting)
---   getCurrentEquipped() -> LIVE loadout (Rounds, Capacity, Identifier...)
--- The previous build read a stale JSON attribute and sent a static Rounds
--- value, so the server rejected every shot. We now use the live loadout
--- object and decrement Rounds exactly like the game does (the root fix).
 --======================================================================
 local ShootSend
 local InvController, SkinsModule
@@ -80,9 +75,9 @@ do
         log("WARN: could not resolve Remotes - aim unavailable")
     end
 
-    -- InventoryController gives the live loadout + skin re-injection API.
-    -- Direct require first (no getgc). Only if that fails do ONE getgc scan
-    -- (never per-frame - the per-frame getgc(true) was what caused the lag).
+    -- InventoryController gives the LIVE loadout (Rounds/Capacity/Identifier)
+    -- plus the skin re-injection API. Direct require first (no getgc); only if
+    -- that fails do ONE getgc scan (never per-frame - that caused the lag).
     local ok2, mod = pcall(function() return require(ReplicatedStorage.Controllers.InventoryController) end)
     if ok2 and type(mod) == "table" and mod.getCurrentEquipped then
         InvController = mod
@@ -94,7 +89,7 @@ do
             end
         end
     end
-    if InvController then log("InventoryController resolved") else log("WARN: no InventoryController - aim/skins limited") end
+    if InvController then log("InventoryController resolved") else log("WARN: no InventoryController") end
 
     pcall(function() SkinsModule = require(ReplicatedStorage.Database.Components.Libraries.Skins) end)
 end
@@ -123,15 +118,11 @@ local function losClear(fromPos, part)
     return workspace:Raycast(fromPos, part.Position - fromPos, losParams) == nil
 end
 
--- shot origin is the camera position (matches the game's own shots), then
--- NaN-masked when sent so server-side origin checks can't pin it. The real
--- damage comes from the reported Hits (client-authoritative).
+-- shot origin is the camera position (matches the game's own shots), NaN-masked
+-- when sent so server-side origin checks can't pin it. Real damage comes from
+-- the reported Hits (client-authoritative). Uses the LIVE loadout + decrements
+-- Rounds exactly like the game so the server accepts the shot (the ragebot fix).
 local NAN = v3(0/0, 0/0, 0/0)
-
--- self-fire one shot at a part (no hooks, no getgc - direct remote call).
--- Uses the LIVE loadout: pulls Identifier/Capacity/IsSniperScoped/ShootingHand
--- from getCurrentEquipped() and decrements Rounds exactly like the game so the
--- server's ammo tracking accepts the shot. THIS is the ragebot fix.
 local function fireAt(part)
     if not ShootSend or not InvController then return end
     local L = InvController.getCurrentEquipped()
@@ -155,14 +146,16 @@ local function fireAt(part)
                 Instance = part,
                 Position = part.Position,
                 Normal   = v3(0, 1, 0),
-                Material  = "Plastic",
-                Exit      = false,
+                Material = "Plastic",
+                Exit     = false,
             } },
         } },
         Rounds  = L.Rounds,
         Ragebot = true,
     })
 end
+
+local function nearestEnemyPart(want, fov, requireVisible, maxDist, teamCheck)
     local center = camera.ViewportSize / 2
     local camPos = camera.CFrame.Position
     local best, bd
@@ -292,8 +285,7 @@ end
 
 --======================================================================
 -- SKIN CHANGER (no hooks): re-inject every inventory weapon with a chosen
--- skin via InventoryController.removeInventoryItem + newInventoryItem. This
--- is the same legitimate API the game uses, so there is nothing to detect.
+-- skin via InventoryController.removeInventoryItem + newInventoryItem.
 --======================================================================
 local SKIN = { Enabled = false, SkinName = "", Float = 0, StatTrak = false, KnifeFix = true }
 
@@ -303,7 +295,6 @@ local function reinjectItem(slot, item, equipIdent)
     local weapon = item.Name
     local skin   = (SKIN.SkinName ~= "" and SKIN.SkinName) or vm.Skin or "Stock"
     local id     = item._id
-    -- known-good knife upgrade (keeps a default useful preset)
     if SKIN.KnifeFix and (weapon == "CT Knife" or weapon == "T Knife") then
         weapon = "Butterfly Knife"; id = "Butterfly Knife_Stock"
         if SKIN.SkinName == "" then skin = "Tiger Stripes" end
@@ -346,7 +337,6 @@ local function applySkins()
     end)
 end
 
--- re-apply on respawn when AutoApply is on
 lplr.CharacterAdded:Connect(function()
     if SKIN.Enabled then task.delay(2, function() if SKIN.Enabled then applySkins() end end) end
 end)
