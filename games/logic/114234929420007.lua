@@ -102,37 +102,12 @@ local function losClear(fromPos, part)
     return workspace:Raycast(fromPos, part.Position - fromPos, losParams) == nil
 end
 
--- live equipped weapon state (read-only attribute, no hook)
+-- live equipped weapon state (read-only attribute, no hook, NO getgc - fast)
 local function getEquipped()
     local j = lplr:GetAttribute("CurrentEquipped")
     if not j then return nil end
     local ok, eq = pcall(function() return HttpService:JSONDecode(j) end)
     return ok and eq or nil
-end
-
--- find the LIVE weapon component object (no hook - read-only getgc scan,
--- cached). The attribute can be stale on Rounds; the live object is exact.
-local _wpnCache
-local function getLiveWeapon()
-    if _wpnCache then
-        local ok, id = pcall(function() return _wpnCache.Identifier end)
-        if ok and type(id) == "string" then return _wpnCache end
-        _wpnCache = nil
-    end
-    local ok, gc = pcall(getgc, true)
-    if not ok then return nil end
-    for _, v in next, gc do
-        if type(v) == "table" then
-            local good = pcall(function()
-                return type(v.Identifier) == "string"
-                    and type(v.Rounds) == "number"
-                    and type(v.Capacity) == "number"
-                    and v.Properties ~= nil
-            end)
-            if good then _wpnCache = v; return v end
-        end
-    end
-    return nil
 end
 
 -- shot origin = current weapon muzzle, else head height
@@ -177,46 +152,24 @@ local function nearestEnemyPart(want, fov, requireVisible, maxDist, teamCheck)
     return best
 end
 
--- self-fire one shot at a part (no hooks - direct remote calls)
+-- self-fire one shot at a part (no hooks, no getgc - direct remote calls)
 local function fireAt(part)
     if not ShootSend then return end
-    local wpn = getLiveWeapon()
     local eq = getEquipped()
-    local identifier, capacity, rounds, hand, scoped, origin
-    if wpn then
-        local ok = pcall(function()
-            identifier = wpn.Identifier
-            capacity   = wpn.Capacity
-            rounds     = wpn.Rounds
-            hand       = wpn.ShootingHand or "Right"
-            scoped     = wpn.IsSniperScoped and true or false
-        end)
-        if not ok then wpn = nil end
-        -- live muzzle from the weapon's viewmodel if present
-        pcall(function()
-            local v = wpn and wpn.Viewmodel
-            local mp = v and (v:FindFirstChild("MuzzlePart", true) or v:FindFirstChild("MuzzlePartR", true))
-            if mp and mp:IsA("BasePart") then origin = mp.Position end
-        end)
-    end
-    if not identifier and eq then
-        identifier, capacity, rounds, hand, scoped = eq.Identifier, eq.Capacity, eq.Rounds, "Right", false
-    end
-    if not identifier then return end
-    origin = origin or getMuzzle()
+    if not eq or not eq.Identifier then return end   -- need a gun equipped
+    local origin = getMuzzle()
     if not origin then return end
-
     local dir = (part.Position - origin)
     if LookSend then
         local ld = (part.Position - camera.CFrame.Position).Unit
         pcall(LookSend, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
     end
     pcall(ShootSend, {
-        IsSniperScoped = scoped or false,
-        ShootingHand   = hand or "Right",
-        Identifier     = identifier,
-        Capacity       = capacity or 30,
-        Rounds         = rounds or 1,
+        IsSniperScoped = false,
+        ShootingHand   = "Right",
+        Identifier     = eq.Identifier,
+        Capacity       = eq.Capacity or 30,
+        Rounds         = eq.Rounds or 1,
         Bullets        = { {
             Direction = dir.Unit,
             Origin    = origin,
