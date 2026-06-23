@@ -1,11 +1,10 @@
---[[ BAC beat sample collector
-     Run it, play a round, let it get kicked. Every heartbeat is appended to
-     workspace file "bac_beats.txt" (survives the kick). Then send me that file.
+--[[ BAC beat LOCAL generator (NO hook - namecall hooks are detected in ~3s).
+     Uses one getgc pass (which survives ~60s) to find the heartbeat producer
+     function, then calls it locally thousands of times - WITHOUT firing the
+     remote - and logs every produced beat to "bac_beats.txt".
 
-     IMPORTANT: all samples must be from ONE session/account - the digest key is
-     derived from your Name + UserId, so do NOT mix accounts. Collect as many
-     beats as you can in the ~60s before the kick. Repeat on the SAME account if
-     you can rejoin; different account = different key = unusable together.
+     Run it, wait ~10-15s (it writes incrementally so data survives the kick),
+     then send me bac_beats.txt. One account/session only (key = Name+UserId).
 ]]
 
 local Players           = game:GetService("Players")
@@ -18,44 +17,78 @@ if not remote then
         if d.Name == "BAC" and d:IsA("RemoteEvent") then remote = d break end
     end
 end
-assert(remote, "no BAC remote found")
+assert(remote, "no BAC remote")
 
-local getnc = getnamecallmethod or get_namecall_method
-local file  = "bac_beats.txt"
+local file = "bac_beats.txt"
+pcall(writefile, file, string.format("# name=%s userid=%d f2=%d f4=%d\n# nonce_dec,seq,digest_hex\n",
+    lp.Name, lp.UserId, lp.UserId * 2, lp.UserId * 4))
+
+local function looksBeat(s)
+    return type(s) == "string" and #s >= 8 and s:find("-", 1, true) ~= nil and s:find("!0!", 1, true) ~= nil
+end
+
+local seen = {}
 local count = 0
-
--- header: identity so I know the key for this batch
-local header = string.format("# name=%s userid=%d f2=%d f4=%d\n# nonce_dec,seq,digest_hex\n",
-    lp.Name, lp.UserId, lp.UserId * 2, lp.UserId * 4)
-if writefile then pcall(writefile, file, header) end
-print(header)
-
-local function logBeat(s)
-    -- unescape "!<dec>!" -> raw bytes
+local function decodeAndLog(s)
+    if seen[s] then return end
+    seen[s] = true
     local b, i = {}, 1
     while i <= #s do
         local n = s:match("^!(%d+)!", i)
         if n then b[#b+1] = tonumber(n); i = i + #n + 2 else b[#b+1] = s:byte(i); i = i + 1 end
     end
     local nonce = (b[1] or 0) + (b[2] or 0) * 256
-    local seq   = b[3]
+    local seq = b[3]
     local dash
     for j = 1, #b do if b[j] == 0x2D then dash = j break end end
     local hx = {}
     if dash then for j = dash + 1, #b do hx[#hx+1] = string.format("%02x", b[j]) end end
-    local line = string.format("%d,%s,%s", nonce, tostring(seq), table.concat(hx))
     count += 1
-    print("[beat " .. count .. "] " .. line)
-    if appendfile then pcall(appendfile, file, line .. "\n") end
+    pcall(appendfile, file, string.format("%d,%s,%s\n", nonce, tostring(seq), table.concat(hx)))
 end
 
-local old
-old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    if self == remote and getnc() == "FireServer" then
-        local a = (...)
-        if type(a) == "string" and #a > 0 then pcall(logBeat, a) end
+-- ONE getgc pass: collect functions related to the heartbeat (hold the BAC
+-- remote, or carry the secret/salt in constants), plus any function upvalues
+-- they hold (the inner producer/encryptor).
+local cands = {}
+for _, v in ipairs(getgc(true)) do
+    if type(v) == "function" then
+        local rel = false
+        local okU, ups = pcall(debug.getupvalues, v)
+        if okU then
+            for _, u in pairs(ups) do
+                if u == remote then rel = true end
+                if type(u) == "function" then cands[u] = true end
+            end
+        end
+        local okK, ks = pcall(debug.getconstants, v)
+        if okK then
+            for _, c in pairs(ks) do
+                if type(c) == "string" and (c:find("GuelpBAC", 1, true) or c:find("PleaseDontFind", 1, true)) then rel = true end
+            end
+        end
+        if rel then cands[v] = true end
     end
-    return old(self, ...)
-end))
+end
 
-print("[BAC] collector armed - play normally. Beats are saved to " .. file)
+-- find a function that, when called, returns a beat-format string
+local producer
+for f in pairs(cands) do
+    local ok, res = pcall(f)
+    if ok and looksBeat(res) then producer = f; break end
+    local ok2, res2 = pcall(f, 1, 1)
+    if ok2 and looksBeat(res2) then producer = f; break end
+end
+
+if not producer then
+    warn("[BAC] no beat producer found among " .. tostring((function() local n=0 for _ in pairs(cands) do n+=1 end return n end)()) .. " candidates")
+    return
+end
+
+print("[BAC] producer found - generating samples to " .. file)
+for _ = 1, 4000 do
+    local ok, res = pcall(producer)
+    if ok and looksBeat(res) then decodeAndLog(res) end
+    if count >= 1500 then break end
+end
+print("[BAC] done - " .. count .. " unique beats saved to " .. file)
