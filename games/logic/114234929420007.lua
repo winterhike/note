@@ -43,14 +43,18 @@ local FEAT = {
     SA_TeamCheck= true,
     SA_WallCheck= true,
     SA_AimKeyOnly = false,    -- only while holding mouse2
-    -- ragebot (auto-fires, through walls, no click needed)
+    -- ragebot (auto-fires, no click needed)
     Ragebot     = false,
     RB_HitPart  = "Head",
-    RB_FOV      = 600,
     RB_RPM      = 800,
     RB_TeamCheck= true,
-    RB_MaxDist  = 1000,
-    RB_AutoPen  = true,       -- auto penetration: true = shoot through walls
+    RB_AutoPen  = true,            -- auto penetration: true = shoot through walls
+    RB_Priority = "Closest Distance",  -- or "Closest to Crosshair"
+    -- gun mods (self-fire only, no hooks)
+    GM_NoSpread = true,            -- self-fire always uses exact direction
+    GM_Multipoint = false,         -- try multiple hitboxes per shot
+    GM_SilentRPM = false,          -- override fire-rate cap for faster self-fire
+    GM_RPM      = 1000,
     -- esp
     ESP         = false,
     BoxESP      = true,
@@ -130,21 +134,23 @@ local function getEquipped()
     return ok and eq or nil
 end
 
--- shot origin = current weapon muzzle, else head height
+-- shot origin = current weapon muzzle, else head, else camera (never nil)
 local function getMuzzle()
     local char = lplr.Character
-    if not char then return nil end
-    local wm = char:FindFirstChild("WeaponModel")
-    if wm then
-        local mp = wm:FindFirstChild("MuzzlePart", true)
-            or wm:FindFirstChild("MuzzlePartR", true)
-            or wm:FindFirstChild("MuzzlePartL", true)
-        if mp and mp:IsA("BasePart") then return mp.Position end
+    if char then
+        local wm = char:FindFirstChild("WeaponModel")
+        if wm then
+            local mp = wm:FindFirstChild("MuzzlePart", true)
+                or wm:FindFirstChild("MuzzlePartR", true)
+                or wm:FindFirstChild("MuzzlePartL", true)
+            if mp and mp:IsA("BasePart") then return mp.Position end
+        end
+        local head = char:FindFirstChild("Head")
+        if head then return head.Position end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then return hrp.Position + v3(0, 1.5, 0) end
     end
-    local head = char:FindFirstChild("Head")
-    if head then return head.Position end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    return hrp and (hrp.Position + v3(0, 1.5, 0))
+    return camera.CFrame.Position
 end
 
 -- self-fire one shot at a part (no hooks, no getgc - direct remote calls)
@@ -160,6 +166,22 @@ local function fireAt(part)
         local ld = (part.Position - camera.CFrame.Position).Unit
         pcall(LookSend, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
     end
+    -- build hit list (multipoint: also include the Head for a headshot chance)
+    local hits = { {
+        Instance = part, Position = part.Position,
+        Normal = v3(0, 0, 1), Material = "Plastic",
+        Distance = dir.Magnitude, Exit = false,
+    } }
+    if FEAT.GM_Multipoint then
+        local head = part.Parent and part.Parent:FindFirstChild("Head")
+        if head and head ~= part then
+            hits[#hits + 1] = {
+                Instance = head, Position = head.Position,
+                Normal = v3(0, 0, 1), Material = "Plastic",
+                Distance = (head.Position - origin).Magnitude, Exit = false,
+            }
+        end
+    end
     pcall(ShootSend, {
         IsSniperScoped = false,
         ShootingHand   = "Right",
@@ -169,11 +191,7 @@ local function fireAt(part)
         Bullets        = { {
             Direction = dir.Unit,
             Origin    = origin,
-            Hits      = { {
-                Instance = part, Position = part.Position,
-                Normal = v3(0, 0, 1), Material = "Plastic",
-                Distance = dir.Magnitude, Exit = false,
-            } },
+            Hits      = hits,
         } },
     })
 end
@@ -203,21 +221,32 @@ local function nearestEnemyPart(want, fov, requireVisible, maxDist, teamCheck)
     return best
 end
 
--- closest enemy by 3D world distance (for ragebot - 360, ignores screen).
+-- ragebot target selection with priority (no max distance):
+--   "Closest Distance"     = nearest enemy in 3D world space (360)
+--   "Closest to Crosshair" = enemy whose hitpart is nearest the screen center
 -- requireVisible=true (auto-pen OFF) only returns targets with clear LOS.
-local function worldNearestEnemy(want, maxDist, teamCheck, requireVisible)
+local function worldNearestEnemy(want, teamCheck, requireVisible, priority)
     local myRoot = lplr.Character and lplr.Character:FindFirstChild("HumanoidRootPart")
     local myPos = (myRoot and myRoot.Position) or camera.CFrame.Position
     local camPos = camera.CFrame.Position
-    local best, bd
+    local center = camera.ViewportSize / 2
+    local crosshair = (priority == "Closest to Crosshair")
+    local best, bestScore
     for _, p in ipairs(Players:GetPlayers()) do
         if isEnemy(p, teamCheck) then
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
             local part = hitPart(p.Character, want)
             if hum and hum.Health > 0 and part then
-                local dist = (myPos - part.Position).Magnitude
-                if dist <= maxDist and (not requireVisible or losClear(camPos, part))
-                    and (not bd or dist < bd) then best, bd = part, dist end
+                if (not requireVisible) or losClear(camPos, part) then
+                    local score
+                    if crosshair then
+                        local sp, on = camera:WorldToViewportPoint(part.Position)
+                        if on then score = (v2(sp.X, sp.Y) - center).Magnitude end
+                    else
+                        score = (myPos - part.Position).Magnitude
+                    end
+                    if score and (not bestScore or score < bestScore) then best, bestScore = part, score end
+                end
             end
         end
     end
@@ -254,8 +283,9 @@ end)
 local rbLast = 0
 RunService.Heartbeat:Connect(function()
     if not FEAT.Ragebot or not ShootSend then return end
-    if os.clock() - rbLast < 60 / math.max(FEAT.RB_RPM, 1) then return end
-    local part = worldNearestEnemy(FEAT.RB_HitPart, FEAT.RB_MaxDist, FEAT.RB_TeamCheck, not FEAT.RB_AutoPen)
+    local rpm = (FEAT.GM_SilentRPM and FEAT.GM_RPM) or FEAT.RB_RPM
+    if os.clock() - rbLast < 60 / math.max(rpm, 1) then return end
+    local part = worldNearestEnemy(FEAT.RB_HitPart, FEAT.RB_TeamCheck, not FEAT.RB_AutoPen, FEAT.RB_Priority)
     if part then rbLast = os.clock(); fireAt(part) end
 end)
 
@@ -459,10 +489,18 @@ addToggle(aimS, "Aim Key Only (RMB)", "SA_AimKeyOnly", false)
 
 addToggle(rageS, "Ragebot (auto-fire)", "Ragebot", false)
 addToggle(rageS, "Auto Penetration (through walls)", "RB_AutoPen", true)
+addDropdown(rageS, "Priority", "RB_Priority", { "Closest Distance", "Closest to Crosshair" })
 addDropdown(rageS, "Hit Part", "RB_HitPart", { "Head", "UpperTorso", "Torso", "HumanoidRootPart" })
 addSlider(rageS, "Fire Rate", "RB_RPM", 60, 1500, 800, 1, "rpm")
-addSlider(rageS, "Max Distance", "RB_MaxDist", 50, 2000, 1000, 1, " studs")
 addToggle(rageS, "Team Check", "RB_TeamCheck", true)
+
+-- Gun Mods (self-fire only - no hooks). Self-fire already sends a perfect
+-- direction so there is zero spread/recoil on aimbot shots by design.
+local gunS = combat:Section({ Name = "Gun Mods", Side = 1 })
+addToggle(gunS, "No Spread (exact direction)", "GM_NoSpread", true)
+addToggle(gunS, "Multipoint (try multiple hitboxes)", "GM_Multipoint", false)
+addToggle(gunS, "Silent Fire Rate Override", "GM_SilentRPM", false)
+addSlider(gunS, "Silent Fire Rate", "GM_RPM", 120, 2000, 1000, 1, "rpm")
 
 addToggle(espS, "ESP", "ESP", false)
 addToggle(espS, "Boxes", "BoxESP", true)
