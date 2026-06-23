@@ -104,7 +104,6 @@ end
 local function teamOf(p) return p:GetAttribute("Team") end
 local function isEnemy(p, teamOn)
     if p == lplr or not p.Character then return false end
-    if p.Character:GetAttribute("Invincible") then return false end   -- pre-round / spawn protection
     if teamOn and teamOf(p) ~= nil and teamOf(p) == teamOf(lplr) then return false end
     return true
 end
@@ -123,57 +122,59 @@ local function losClear(fromPos, part)
     return workspace:Raycast(fromPos, part.Position - fromPos, losParams) == nil
 end
 
--- shot origin = weapon muzzle (REAL world pos), else camera. The previous
--- build sent a NaN origin which made the server reject the hit -> no damage.
-local function getOrigin()
-    local char = lplr.Character
-    if char then
-        local wm = char:FindFirstChild("WeaponModel")
-        if wm then
-            local mp = wm:FindFirstChild("MuzzlePart", true)
-                or wm:FindFirstChild("MuzzlePartR", true)
-                or wm:FindFirstChild("MuzzlePartL", true)
-            if mp and mp:IsA("BasePart") then return mp.Position end
-        end
-    end
-    return camera.CFrame.Position
+-- live equipped weapon state (read-only attribute, no hook, NO getgc - fast)
+local function getEquipped()
+    local j = lplr:GetAttribute("CurrentEquipped")
+    if not j then return nil end
+    local ok, eq = pcall(function() return HttpService:JSONDecode(j) end)
+    return ok and eq or nil
 end
 
-local function fireAt(part)
-    if not ShootSend or not InvController then return end
-    local L = InvController.getCurrentEquipped()
-    if not L or L.Rounds == nil or L.Rounds <= 0 then return end   -- empty / no gun
-    local origin = getOrigin()
-    local dir = (part.Position - origin)
-    local mag = dir.Magnitude
-    if mag <= 0 or mag ~= mag then return end
-    local unit = dir.Unit
-    -- Match the server's look-vs-shot validation (legit shots stay within ~3deg).
-    -- WITHOUT this, any shot at a target not already in front of you is rejected,
-    -- so the ragebot "fires" but never deals damage. This is the real hit fix.
-    if LookSend then
-        pcall(LookSend, { HorizontalAngle = math.atan2(-unit.X, -unit.Z), VerticalLook = unit.Y })
+-- shot origin = current weapon muzzle, else head height
+local function getMuzzle()
+    local char = lplr.Character
+    if not char then return nil end
+    local wm = char:FindFirstChild("WeaponModel")
+    if wm then
+        local mp = wm:FindFirstChild("MuzzlePart", true)
+            or wm:FindFirstChild("MuzzlePartR", true)
+            or wm:FindFirstChild("MuzzlePartL", true)
+        if mp and mp:IsA("BasePart") then return mp.Position end
     end
-    L.Rounds = L.Rounds - 1
+    local head = char:FindFirstChild("Head")
+    if head then return head.Position end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    return hrp and (hrp.Position + v3(0, 1.5, 0))
+end
+
+-- self-fire one shot at a part (no hooks, no getgc - direct remote calls)
+-- THIS IS THE PROVEN WORKING PACKET (commit 900b6e3). Do not change it.
+local function fireAt(part)
+    if not ShootSend then return end
+    local eq = getEquipped()
+    if not eq or not eq.Identifier then return end   -- need a gun equipped
+    local origin = getMuzzle()
+    if not origin then return end
+    local dir = (part.Position - origin)
+    if LookSend then
+        local ld = (part.Position - camera.CFrame.Position).Unit
+        pcall(LookSend, { HorizontalAngle = math.atan2(-ld.X, -ld.Z), VerticalLook = ld.Y })
+    end
     pcall(ShootSend, {
-        IsSniperScoped = L.IsSniperScoped,
-        ShootingHand   = L.ShootingHand or "Right",
-        Identifier     = L.Identifier,
-        Capacity       = L.Capacity,
-        Bullets = { [1] = {
-            Direction = unit,
+        IsSniperScoped = false,
+        ShootingHand   = "Right",
+        Identifier     = eq.Identifier,
+        Capacity       = eq.Capacity or 30,
+        Rounds         = eq.Rounds or 1,
+        Bullets        = { {
+            Direction = dir.Unit,
             Origin    = origin,
-            Hits = { [1] = {
-                Distance = mag,
-                Instance = part,
-                Position = part.Position,
-                Normal   = v3(0, 1, 0),
-                Material = "Plastic",
-                Exit     = false,
+            Hits      = { {
+                Instance = part, Position = part.Position,
+                Normal = v3(0, 0, 1), Material = "Plastic",
+                Distance = dir.Magnitude, Exit = false,
             } },
         } },
-        Rounds  = L.Rounds,
-        Ragebot = true,
     })
 end
 
