@@ -55,15 +55,56 @@ do
 end
 
 -- 2) hook the FireServer FUNCTION (this is where the beat actually goes)
+local dumped = false
+local function dumpCaller()
+    -- walk the stack to find the AC beat sender + its encryptor
+    pcall(function() appendfile(file, "\n# --- caller chain ---\n") end)
+    for lvl = 2, 8 do
+        local ok, info = pcall(debug.getinfo, lvl, "slnf")
+        if ok and info and info.func then
+            local line = string.format("# L%d what=%s src=%s line=%s name=%s nparams=%s",
+                lvl, tostring(info.what), tostring(info.source), tostring(info.currentline),
+                tostring(info.name), tostring(info.numparams))
+            pcall(function() appendfile(file, line .. "\n") end)
+            print(line)
+            -- dump upvalues of the immediate sender (level 2) - encryptor lives here
+            if lvl == 2 then
+                local okU, ups = pcall(debug.getupvalues, info.func)
+                if okU then
+                    for ui, u in pairs(ups) do
+                        local d = "#   up" .. ui .. " = " .. typeof(u)
+                        if type(u) == "function" then
+                            local fi = debug.getinfo(u)
+                            local okK, ks = pcall(debug.getconstants, u)
+                            d = d .. string.format(" [%s nparams=%d nconst=%s]", tostring(fi.what), fi.numparams, okK and #ks or "?")
+                        elseif type(u) == "table" then
+                            local n = 0 for _ in pairs(u) do n += 1 end
+                            d = d .. " [tbl#" .. n .. "]"
+                        elseif type(u) == "string" or type(u) == "number" then
+                            d = d .. " = " .. tostring(u):sub(1, 40)
+                        end
+                        pcall(function() appendfile(file, d .. "\n") end)
+                        print(d)
+                    end
+                end
+            end
+        end
+    end
+    pcall(function() appendfile(file, "# --- end caller chain ---\n") end)
+end
+
 local hookfn = hookfunction or replaceclosure
 local fs = remote.FireServer
 local old
 old = hookfn(fs, newcclosure(function(self, ...)
     if self == remote then
         local a1 = (...)
-        if type(a1) == "string" and #a1 > 0 then pcall(logBeat, a1) end
+        if type(a1) == "string" and #a1 > 0 then
+            pcall(logBeat, a1)
+            if not dumped then dumped = true; pcall(dumpCaller) end
+        end
     end
     return old(self, ...)
 end))
 
-print("[BAC] collector v3 armed (FireServer fn hook). Play normally; beats -> " .. file)
+print("[BAC] collector v4 armed (FireServer fn hook + caller dump). Play normally; beats -> " .. file)
