@@ -1,9 +1,11 @@
---[[ BAC beat collector - MINIMAL canary hook (matches namecall_bypass.lua).
-     Only special-cases FakeIndex (like your working bypass) and passes every
-     other namecall straight through, so legit game calls are untouched. We just
-     additionally record Remotes.BAC FireServer beats to "bac_beats.txt".
+--[[ BAC beat collector v3 - hook the FireServer FUNCTION (not __namecall).
+     The beats are sent via a direct FireServer function call, NOT a `:method`
+     namecall, so a __namecall hook never sees them (that's why the file was
+     header-only). This hooks remote.FireServer itself - the exact mechanism
+     that captured beats in the first place - and also installs the FakeIndex
+     namecall canary so it survives BAC's probe.
 
-     Run it, play a round, then send me bac_beats.txt (one account/session only).
+     Run it, play a round, send me bac_beats.txt. One account/session only.
 ]]
 
 local Players           = game:GetService("Players")
@@ -41,25 +43,27 @@ local function logBeat(s)
     pcall(appendfile, file, line .. "\n")
 end
 
--- EXACTLY the working namecall_bypass logic (FakeIndex only) + capture.
-local ToNotTrust = nil
-local Old
-Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local Method = getnamecallmethod()
-    local ScriptCalling = getcallingscript()
+-- 1) FakeIndex canary so the hook survives BAC's namecall probe
+do
+    local Old
+    Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        if getnamecallmethod() == "FakeIndex" then
+            return false, 'FakeIndex is not a valid member of DataModel "Ugc"'
+        end
+        return Old(self, ...)
+    end))
+end
 
-    if Method == "FakeIndex" then
-        if ScriptCalling then ToNotTrust = ScriptCalling end
-        return false, 'FakeIndex is not a valid member of DataModel "Ugc"'
-    end
-
-    -- record heartbeats (does not alter the call)
-    if self == remote and Method == "FireServer" then
+-- 2) hook the FireServer FUNCTION (this is where the beat actually goes)
+local hookfn = hookfunction or replaceclosure
+local fs = remote.FireServer
+local old
+old = hookfn(fs, newcclosure(function(self, ...)
+    if self == remote then
         local a1 = (...)
         if type(a1) == "string" and #a1 > 0 then pcall(logBeat, a1) end
     end
-
-    return Old(self, ...)
+    return old(self, ...)
 end))
 
-print("[BAC] collector armed (FakeIndex-only canary). Play normally; beats -> " .. file)
+print("[BAC] collector v3 armed (FireServer fn hook). Play normally; beats -> " .. file)
