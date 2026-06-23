@@ -1,11 +1,9 @@
---[[ BAC beat collector - CANARY-DEFENDED namecall hook (survives BAC's probe).
-     The raw hookmetamethod was caught in ~3s because it didn't answer BAC's
-     FakeIndex / OmgUnvirNamecall / WaitForChild(table) canary probes. This hook
-     answers them with the genuine error (per namecall_bypass.lua), so it lives,
-     and we capture every Remotes.BAC FireServer beat to "bac_beats.txt".
+--[[ BAC beat collector - MINIMAL canary hook (matches namecall_bypass.lua).
+     Only special-cases FakeIndex (like your working bypass) and passes every
+     other namecall straight through, so legit game calls are untouched. We just
+     additionally record Remotes.BAC FireServer beats to "bac_beats.txt".
 
-     Run it, play a round (let beats accumulate), then send me bac_beats.txt.
-     ONE account/session only (key = Name+UserId).
+     Run it, play a round, then send me bac_beats.txt (one account/session only).
 ]]
 
 local Players           = game:GetService("Players")
@@ -43,36 +41,20 @@ local function logBeat(s)
     pcall(appendfile, file, line .. "\n")
 end
 
-local getnc = getnamecallmethod or get_namecall_method
-local getcs  = getcallingscript
-
-local function validMember(self, method)
-    local ok, v = pcall(function() return self[method] end)
-    return ok and v ~= nil
-end
-
+-- EXACTLY the working namecall_bypass logic (FakeIndex only) + capture.
 local ToNotTrust = nil
 local Old
 Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local method = getnc()
-    local scriptCalling = getcs and getcs() or nil
+    local Method = getnamecallmethod()
+    local ScriptCalling = getcallingscript()
 
-    -- canary 1: WaitForChild with a table arg
-    if self == game and method == "WaitForChild" then
-        local a1 = (...)
-        if typeof(a1) == "table" then
-            return false, "invalid argument #1 to 'WaitForChild' (string expected, got table)"
-        end
+    if Method == "FakeIndex" then
+        if ScriptCalling then ToNotTrust = ScriptCalling end
+        return false, 'FakeIndex is not a valid member of DataModel "Ugc"'
     end
 
-    -- canary 2: invalid-member probes (OmgUnvirNamecall / FakeIndex / anything fake)
-    if method == "OmgUnvirNamecall" or method == "FakeIndex" or (method and not validMember(self, method)) then
-        if scriptCalling then ToNotTrust = scriptCalling end
-        return false, method .. ' is not a valid member of DataModel "Ugc"'
-    end
-
-    -- capture the heartbeat
-    if self == remote and method == "FireServer" then
+    -- record heartbeats (does not alter the call)
+    if self == remote and Method == "FireServer" then
         local a1 = (...)
         if type(a1) == "string" and #a1 > 0 then pcall(logBeat, a1) end
     end
@@ -80,4 +62,4 @@ Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
     return Old(self, ...)
 end))
 
-print("[BAC] collector armed (canary-defended). Play normally; beats -> " .. file)
+print("[BAC] collector armed (FakeIndex-only canary). Play normally; beats -> " .. file)
