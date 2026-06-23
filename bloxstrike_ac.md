@@ -243,3 +243,22 @@ nonce,seq,digest_hex
 - seq looks like a channel/type id, not a counter (only 5 and 11 seen; the seq5
   beat repeats with a constant nonce, seq11 beats vary nonce).
 - Need MANY more samples (same account) across varying seq to reverse the PRNG/keystream.
+
+
+## Batch 2 (name=vdsvsdvdsvds6 userid=11167516722)
+nonce,seq,digest_hex
+1823,1,65c2ff6d2313ab6de534776cf2            (13 bytes)
+28685,1,a6d3c01d6dd4978e8185d43b0cefeee42d52f3 (19 bytes)
+32014,1,9c08f708d23c4f60b4b0e8219b1214aa2d4a7b (19 bytes)
+
+### Caller chain (who sends the beat)
+FireServer(C) <- ReplicatedFirst.DataController (Lua, line 1 = VIRTUALIZED)
+=> the heartbeat sender is a script chunknamed "ReplicatedFirst.DataController"
+   (NOT the readable ReplicatedStorage.Controllers.DataController). The AC
+   reuses that name as a disguise. Need to dump THIS function's upvalues.
+
+### Revised findings
+- len=seq+8 was COINCIDENCE. Batch2 has all seq=1 but lengths 13 AND 19.
+- Length (13 vs 19) tracks nonce/content, not seq. Likely two beat variants.
+- Still deterministic (1823,1 repeats identically).
+- seq seen so far: 1, 5, 11.

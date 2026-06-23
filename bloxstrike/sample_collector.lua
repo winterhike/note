@@ -57,40 +57,43 @@ end
 -- 2) hook the FireServer FUNCTION (this is where the beat actually goes)
 local dumped = false
 local function dumpCaller()
-    -- walk the stack to find the AC beat sender + its encryptor
-    pcall(function() appendfile(file, "\n# --- caller chain ---\n") end)
-    for lvl = 2, 8 do
+    pcall(function() appendfile(file, "\n# --- sender dump ---\n") end)
+    -- scan all stack frames; dump upvalues of any Lua function whose source is
+    -- the AC sender (ReplicatedFirst.DataController) - that holds the encryptor.
+    for lvl = 2, 20 do
         local ok, info = pcall(debug.getinfo, lvl, "slnf")
-        if ok and info and info.func then
-            local line = string.format("# L%d what=%s src=%s line=%s name=%s nparams=%s",
-                lvl, tostring(info.what), tostring(info.source), tostring(info.currentline),
-                tostring(info.name), tostring(info.numparams))
-            pcall(function() appendfile(file, line .. "\n") end)
-            print(line)
-            -- dump upvalues of the immediate sender (level 2) - encryptor lives here
-            if lvl == 2 then
-                local okU, ups = pcall(debug.getupvalues, info.func)
-                if okU then
-                    for ui, u in pairs(ups) do
-                        local d = "#   up" .. ui .. " = " .. typeof(u)
-                        if type(u) == "function" then
-                            local fi = debug.getinfo(u)
-                            local okK, ks = pcall(debug.getconstants, u)
-                            d = d .. string.format(" [%s nparams=%d nconst=%s]", tostring(fi.what), fi.numparams, okK and #ks or "?")
-                        elseif type(u) == "table" then
-                            local n = 0 for _ in pairs(u) do n += 1 end
-                            d = d .. " [tbl#" .. n .. "]"
-                        elseif type(u) == "string" or type(u) == "number" then
-                            d = d .. " = " .. tostring(u):sub(1, 40)
-                        end
-                        pcall(function() appendfile(file, d .. "\n") end)
-                        print(d)
+        if not ok or not info or not info.func then break end
+        local src = tostring(info.source)
+        local hdr = string.format("# L%d what=%s src=%s line=%s name=%s",
+            lvl, tostring(info.what), src, tostring(info.currentline), tostring(info.name))
+        pcall(function() appendfile(file, hdr .. "\n") end)
+        print(hdr)
+        if info.what == "Lua" and src:find("DataController", 1, true) then
+            local okU, ups = pcall(debug.getupvalues, info.func)
+            if okU then
+                for ui, u in pairs(ups) do
+                    local d = "#    up" .. ui .. " = " .. typeof(u)
+                    if type(u) == "function" then
+                        local fi = debug.getinfo(u)
+                        local okK, ks = pcall(debug.getconstants, u)
+                        d = d .. string.format(" [%s nparams=%d nconst=%s src=%s]",
+                            tostring(fi.what), fi.numparams, okK and #ks or "?", tostring(fi.source):sub(1, 30))
+                    elseif type(u) == "table" then
+                        local n = 0 local sample = ""
+                        for k, v in pairs(u) do n += 1 if n <= 3 then sample = sample .. tostring(k) .. "=" .. tostring(v):sub(1,20) .. " " end end
+                        d = d .. " [tbl#" .. n .. " " .. sample .. "]"
+                    elseif type(u) == "string" then
+                        d = d .. ' = "' .. u:sub(1, 50) .. '"'
+                    elseif type(u) == "number" or type(u) == "boolean" then
+                        d = d .. " = " .. tostring(u)
                     end
+                    pcall(function() appendfile(file, d .. "\n") end)
+                    print(d)
                 end
             end
         end
     end
-    pcall(function() appendfile(file, "# --- end caller chain ---\n") end)
+    pcall(function() appendfile(file, "# --- end sender dump ---\n") end)
 end
 
 local hookfn = hookfunction or replaceclosure
@@ -107,4 +110,4 @@ old = hookfn(fs, newcclosure(function(self, ...)
     return old(self, ...)
 end))
 
-print("[BAC] collector v4 armed (FireServer fn hook + caller dump). Play normally; beats -> " .. file)
+print("[BAC] collector v5 armed (FireServer hook + sender upvalue dump). Play; beats -> " .. file)
