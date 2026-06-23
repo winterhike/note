@@ -1,10 +1,11 @@
---[[ BAC beat LOCAL generator (NO hook - namecall hooks are detected in ~3s).
-     Uses one getgc pass (which survives ~60s) to find the heartbeat producer
-     function, then calls it locally thousands of times - WITHOUT firing the
-     remote - and logs every produced beat to "bac_beats.txt".
+--[[ BAC beat collector - CANARY-DEFENDED namecall hook (survives BAC's probe).
+     The raw hookmetamethod was caught in ~3s because it didn't answer BAC's
+     FakeIndex / OmgUnvirNamecall / WaitForChild(table) canary probes. This hook
+     answers them with the genuine error (per namecall_bypass.lua), so it lives,
+     and we capture every Remotes.BAC FireServer beat to "bac_beats.txt".
 
-     Run it, wait ~10-15s (it writes incrementally so data survives the kick),
-     then send me bac_beats.txt. One account/session only (key = Name+UserId).
+     Run it, play a round (let beats accumulate), then send me bac_beats.txt.
+     ONE account/session only (key = Name+UserId).
 ]]
 
 local Players           = game:GetService("Players")
@@ -23,15 +24,8 @@ local file = "bac_beats.txt"
 pcall(writefile, file, string.format("# name=%s userid=%d f2=%d f4=%d\n# nonce_dec,seq,digest_hex\n",
     lp.Name, lp.UserId, lp.UserId * 2, lp.UserId * 4))
 
-local function looksBeat(s)
-    return type(s) == "string" and #s >= 8 and s:find("-", 1, true) ~= nil and s:find("!0!", 1, true) ~= nil
-end
-
-local seen = {}
 local count = 0
-local function decodeAndLog(s)
-    if seen[s] then return end
-    seen[s] = true
+local function logBeat(s)
     local b, i = {}, 1
     while i <= #s do
         local n = s:match("^!(%d+)!", i)
@@ -43,52 +37,47 @@ local function decodeAndLog(s)
     for j = 1, #b do if b[j] == 0x2D then dash = j break end end
     local hx = {}
     if dash then for j = dash + 1, #b do hx[#hx+1] = string.format("%02x", b[j]) end end
+    local line = string.format("%d,%s,%s", nonce, tostring(seq), table.concat(hx))
     count += 1
-    pcall(appendfile, file, string.format("%d,%s,%s\n", nonce, tostring(seq), table.concat(hx)))
+    print("[beat " .. count .. "] " .. line)
+    pcall(appendfile, file, line .. "\n")
 end
 
--- ONE getgc pass: collect functions related to the heartbeat (hold the BAC
--- remote, or carry the secret/salt in constants), plus any function upvalues
--- they hold (the inner producer/encryptor).
-local cands = {}
-for _, v in ipairs(getgc(true)) do
-    if type(v) == "function" then
-        local rel = false
-        local okU, ups = pcall(debug.getupvalues, v)
-        if okU then
-            for _, u in pairs(ups) do
-                if u == remote then rel = true end
-                if type(u) == "function" then cands[u] = true end
-            end
+local getnc = getnamecallmethod or get_namecall_method
+local getcs  = getcallingscript
+
+local function validMember(self, method)
+    local ok, v = pcall(function() return self[method] end)
+    return ok and v ~= nil
+end
+
+local ToNotTrust = nil
+local Old
+Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnc()
+    local scriptCalling = getcs and getcs() or nil
+
+    -- canary 1: WaitForChild with a table arg
+    if self == game and method == "WaitForChild" then
+        local a1 = (...)
+        if typeof(a1) == "table" then
+            return false, "invalid argument #1 to 'WaitForChild' (string expected, got table)"
         end
-        local okK, ks = pcall(debug.getconstants, v)
-        if okK then
-            for _, c in pairs(ks) do
-                if type(c) == "string" and (c:find("GuelpBAC", 1, true) or c:find("PleaseDontFind", 1, true)) then rel = true end
-            end
-        end
-        if rel then cands[v] = true end
     end
-end
 
--- find a function that, when called, returns a beat-format string
-local producer
-for f in pairs(cands) do
-    local ok, res = pcall(f)
-    if ok and looksBeat(res) then producer = f; break end
-    local ok2, res2 = pcall(f, 1, 1)
-    if ok2 and looksBeat(res2) then producer = f; break end
-end
+    -- canary 2: invalid-member probes (OmgUnvirNamecall / FakeIndex / anything fake)
+    if method == "OmgUnvirNamecall" or method == "FakeIndex" or (method and not validMember(self, method)) then
+        if scriptCalling then ToNotTrust = scriptCalling end
+        return false, method .. ' is not a valid member of DataModel "Ugc"'
+    end
 
-if not producer then
-    warn("[BAC] no beat producer found among " .. tostring((function() local n=0 for _ in pairs(cands) do n+=1 end return n end)()) .. " candidates")
-    return
-end
+    -- capture the heartbeat
+    if self == remote and method == "FireServer" then
+        local a1 = (...)
+        if type(a1) == "string" and #a1 > 0 then pcall(logBeat, a1) end
+    end
 
-print("[BAC] producer found - generating samples to " .. file)
-for _ = 1, 4000 do
-    local ok, res = pcall(producer)
-    if ok and looksBeat(res) then decodeAndLog(res) end
-    if count >= 1500 then break end
-end
-print("[BAC] done - " .. count .. " unique beats saved to " .. file)
+    return Old(self, ...)
+end))
+
+print("[BAC] collector armed (canary-defended). Play normally; beats -> " .. file)
