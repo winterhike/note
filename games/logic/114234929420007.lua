@@ -50,6 +50,7 @@ local FEAT = {
     RB_RPM      = 800,
     RB_TeamCheck= true,
     RB_MaxDist  = 1000,
+    RB_AutoPen  = true,       -- auto penetration: true = shoot through walls
     -- esp
     ESP         = false,
     BoxESP      = true,
@@ -64,12 +65,15 @@ local FEAT = {
 --======================================================================
 -- resolve remotes + InventoryController (require/CALL only - NOT hooks)
 --======================================================================
-local ShootSend
+local ShootSend, LookSend
 local InvController, SkinsModule
 do
     local ok, Remotes = pcall(require, ReplicatedStorage.Database.Security.Remotes)
     if ok and Remotes and Remotes.Inventory and Remotes.Inventory.ShootWeapon then
         ShootSend = Remotes.Inventory.ShootWeapon.Send
+        if Remotes.Character and Remotes.Character.UpdateLookAngle then
+            LookSend = Remotes.Character.UpdateLookAngle.Send
+        end
         log("ShootWeapon resolved (self-fire ready)")
     else
         log("WARN: could not resolve Remotes - aim unavailable")
@@ -100,6 +104,7 @@ end
 local function teamOf(p) return p:GetAttribute("Team") end
 local function isEnemy(p, teamOn)
     if p == lplr or not p.Character then return false end
+    if p.Character:GetAttribute("Invincible") then return false end   -- pre-round / spawn protection
     if teamOn and teamOf(p) ~= nil and teamOf(p) == teamOf(lplr) then return false end
     return true
 end
@@ -118,29 +123,46 @@ local function losClear(fromPos, part)
     return workspace:Raycast(fromPos, part.Position - fromPos, losParams) == nil
 end
 
--- shot origin is the camera position (matches the game's own shots), NaN-masked
--- when sent so server-side origin checks can't pin it. Real damage comes from
--- the reported Hits (client-authoritative). Uses the LIVE loadout + decrements
--- Rounds exactly like the game so the server accepts the shot (the ragebot fix).
-local NAN = v3(0/0, 0/0, 0/0)
+-- shot origin = weapon muzzle (REAL world pos), else camera. The previous
+-- build sent a NaN origin which made the server reject the hit -> no damage.
+local function getOrigin()
+    local char = lplr.Character
+    if char then
+        local wm = char:FindFirstChild("WeaponModel")
+        if wm then
+            local mp = wm:FindFirstChild("MuzzlePart", true)
+                or wm:FindFirstChild("MuzzlePartR", true)
+                or wm:FindFirstChild("MuzzlePartL", true)
+            if mp and mp:IsA("BasePart") then return mp.Position end
+        end
+    end
+    return camera.CFrame.Position
+end
+
 local function fireAt(part)
     if not ShootSend or not InvController then return end
     local L = InvController.getCurrentEquipped()
-    if not L then return end
-    if L.Rounds == nil or L.Rounds <= 0 then return end   -- empty / no gun
-    local origin = camera.CFrame.Position
+    if not L or L.Rounds == nil or L.Rounds <= 0 then return end   -- empty / no gun
+    local origin = getOrigin()
     local dir = (part.Position - origin)
     local mag = dir.Magnitude
     if mag <= 0 or mag ~= mag then return end
+    local unit = dir.Unit
+    -- Match the server's look-vs-shot validation (legit shots stay within ~3deg).
+    -- WITHOUT this, any shot at a target not already in front of you is rejected,
+    -- so the ragebot "fires" but never deals damage. This is the real hit fix.
+    if LookSend then
+        pcall(LookSend, { HorizontalAngle = math.atan2(-unit.X, -unit.Z), VerticalLook = unit.Y })
+    end
     L.Rounds = L.Rounds - 1
     pcall(ShootSend, {
         IsSniperScoped = L.IsSniperScoped,
-        ShootingHand   = L.ShootingHand,
+        ShootingHand   = L.ShootingHand or "Right",
         Identifier     = L.Identifier,
         Capacity       = L.Capacity,
         Bullets = { [1] = {
-            Direction = dir.Unit,
-            Origin    = origin + NAN,
+            Direction = unit,
+            Origin    = origin,
             Hits = { [1] = {
                 Distance = mag,
                 Instance = part,
@@ -180,10 +202,12 @@ local function nearestEnemyPart(want, fov, requireVisible, maxDist, teamCheck)
     return best
 end
 
--- closest enemy by 3D world distance (for ragebot - 360, ignores screen)
-local function worldNearestEnemy(want, maxDist, teamCheck)
+-- closest enemy by 3D world distance (for ragebot - 360, ignores screen).
+-- requireVisible=true (auto-pen OFF) only returns targets with clear LOS.
+local function worldNearestEnemy(want, maxDist, teamCheck, requireVisible)
     local myRoot = lplr.Character and lplr.Character:FindFirstChild("HumanoidRootPart")
     local myPos = (myRoot and myRoot.Position) or camera.CFrame.Position
+    local camPos = camera.CFrame.Position
     local best, bd
     for _, p in ipairs(Players:GetPlayers()) do
         if isEnemy(p, teamCheck) then
@@ -191,7 +215,8 @@ local function worldNearestEnemy(want, maxDist, teamCheck)
             local part = hitPart(p.Character, want)
             if hum and hum.Health > 0 and part then
                 local dist = (myPos - part.Position).Magnitude
-                if dist <= maxDist and (not bd or dist < bd) then best, bd = part, dist end
+                if dist <= maxDist and (not requireVisible or losClear(camPos, part))
+                    and (not bd or dist < bd) then best, bd = part, dist end
             end
         end
     end
@@ -223,12 +248,13 @@ RunService.Heartbeat:Connect(function()
     if part then saLast = os.clock(); fireAt(part) end
 end)
 
--- Ragebot: auto-fires (no click), through walls, 3D world targeting
+-- Ragebot: auto-fires (no click). Auto-pen ON = through walls; OFF = only
+-- fires at targets with clear line of sight (still the same remote/packet).
 local rbLast = 0
 RunService.Heartbeat:Connect(function()
     if not FEAT.Ragebot or not ShootSend then return end
     if os.clock() - rbLast < 60 / math.max(FEAT.RB_RPM, 1) then return end
-    local part = worldNearestEnemy(FEAT.RB_HitPart, FEAT.RB_MaxDist, FEAT.RB_TeamCheck)
+    local part = worldNearestEnemy(FEAT.RB_HitPart, FEAT.RB_MaxDist, FEAT.RB_TeamCheck, not FEAT.RB_AutoPen)
     if part then rbLast = os.clock(); fireAt(part) end
 end)
 
@@ -284,21 +310,77 @@ do
 end
 
 --======================================================================
--- SKIN CHANGER (no hooks): re-inject every inventory weapon with a chosen
--- skin via InventoryController.removeInventoryItem + newInventoryItem.
+-- SKIN CHANGER (no hooks): pick a skin per weapon from the game's real skin
+-- list, then re-inject each inventory item via removeInventoryItem +
+-- newInventoryItem (the same API the game uses).
 --======================================================================
-local SKIN = { Enabled = false, SkinName = "", Float = 0, StatTrak = false, KnifeFix = true }
+local SKIN = { Map = {}, Float = 0, StatTrak = false }  -- Map[weaponName] = skinName
+
+local KNIFE_SET = {
+    ["Butterfly Knife"]=true, ["Flip Knife"]=true, ["Gut Knife"]=true, ["Karambit"]=true,
+    ["M9 Bayonet"]=true, ["Stiletto Knife"]=true, ["Skeleton Knife"]=true,
+    ["CT Knife"]=true, ["T Knife"]=true,
+}
+local GLOVE_SET = {
+    ["Sports Gloves"]=true, ["Operator Gloves"]=true, ["Hand Wraps"]=true,
+    ["Driver Gloves"]=true, ["CT Glove"]=true, ["T Glove"]=true,
+}
+
+-- list every weapon name (from the game's weapon DB, with a fallback)
+local function getWeaponList()
+    local list = {}
+    pcall(function()
+        local f = ReplicatedStorage:FindFirstChild("Database")
+        f = f and f:FindFirstChild("Custom")
+        f = f and f:FindFirstChild("Weapons")
+        if f then for _, c in ipairs(f:GetChildren()) do list[#list+1] = c.Name end end
+    end)
+    if #list == 0 then
+        list = { "AK-47","AUG","AWP","Butterfly Knife","CT Glove","CT Knife","Desert Eagle",
+            "Dual Berettas","FAMAS","Five-SeveN","Flip Knife","Galil AR","Glock-18","Gut Knife",
+            "Karambit","M4A1-S","M4A4","M9 Bayonet","MAC-10","MP9","Negev","Nova","P250","P90",
+            "Tec-9","SG 553","SSG 08","XM1014","USP-S","T Glove","T Knife","MAG-7","R8 Revolver",
+            "Stiletto Knife","Sawed-Off","Skeleton Knife","Sports Gloves","Operator Gloves",
+            "Hand Wraps","Driver Gloves" }
+    end
+    table.sort(list)
+    return list
+end
+
+-- skin names available for a given weapon (always includes "Stock")
+local function skinsForWeapon(weapon)
+    local names, seen = {}, {}
+    if SkinsModule and SkinsModule.GetAllSkinsForWeapon then
+        local ok, res = pcall(SkinsModule.GetAllSkinsForWeapon, weapon)
+        if ok and type(res) == "table" then
+            for _, v in pairs(res) do
+                local sn = type(v) == "table" and v.skin
+                if sn and not seen[sn] then seen[sn] = true; names[#names+1] = sn end
+            end
+        end
+    end
+    if not seen["Stock"] then table.insert(names, 1, "Stock") end
+    return names
+end
+
+-- choose target weapon+skin for an inventory item (handles knife/glove swaps)
+local function resolveTarget(itemName)
+    if SKIN.Map[itemName] then return itemName, SKIN.Map[itemName] end
+    if KNIFE_SET[itemName] then
+        for w, s in pairs(SKIN.Map) do if KNIFE_SET[w] then return w, s end end
+    elseif GLOVE_SET[itemName] then
+        for w, s in pairs(SKIN.Map) do if GLOVE_SET[w] then return w, s end end
+    end
+    return nil
+end
 
 local function reinjectItem(slot, item, equipIdent)
     if not item or not item.Identifier then return end
-    local vm     = item.Viewmodel or {}
-    local weapon = item.Name
-    local skin   = (SKIN.SkinName ~= "" and SKIN.SkinName) or vm.Skin or "Stock"
-    local id     = item._id
-    if SKIN.KnifeFix and (weapon == "CT Knife" or weapon == "T Knife") then
-        weapon = "Butterfly Knife"; id = "Butterfly Knife_Stock"
-        if SKIN.SkinName == "" then skin = "Tiger Stripes" end
-    end
+    local weapon, skin = resolveTarget(item.Name)
+    if not weapon or not skin then return end          -- nothing mapped for this item
+    local vm = item.Viewmodel or {}
+    local id = item._id
+    if weapon ~= item.Name then id = weapon .. "_Stock" end   -- weapon swap (knife/glove)
     pcall(function() InvController.removeInventoryItem(item.Identifier) end)
     pcall(function()
         InvController.newInventoryItem({
@@ -337,10 +419,6 @@ local function applySkins()
     end)
 end
 
-lplr.CharacterAdded:Connect(function()
-    if SKIN.Enabled then task.delay(2, function() if SKIN.Enabled then applySkins() end end) end
-end)
-
 --======================================================================
 -- UI (gethui-parented by the Library)
 --======================================================================
@@ -374,12 +452,12 @@ end
 addToggle(aimS, "Silent Aim", "SilentAim", false)
 addDropdown(aimS, "Hit Part", "SA_HitPart", { "Head", "UpperTorso", "Torso", "HumanoidRootPart" })
 addSlider(aimS, "FOV", "SA_FOV", 10, 600, 120, 1, "px")
-addSlider(aimS, "Fire Rate", "SA_RPM", 60, 1200, 600, 1, "rpm")
 addToggle(aimS, "Wall Check", "SA_WallCheck", true)
 addToggle(aimS, "Team Check", "SA_TeamCheck", true)
 addToggle(aimS, "Aim Key Only (RMB)", "SA_AimKeyOnly", false)
 
-addToggle(rageS, "Ragebot (auto-fire, through walls)", "Ragebot", false)
+addToggle(rageS, "Ragebot (auto-fire)", "Ragebot", false)
+addToggle(rageS, "Auto Penetration (through walls)", "RB_AutoPen", true)
 addDropdown(rageS, "Hit Part", "RB_HitPart", { "Head", "UpperTorso", "Torso", "HumanoidRootPart" })
 addSlider(rageS, "Fire Rate", "RB_RPM", 60, 1500, 800, 1, "rpm")
 addSlider(rageS, "Max Distance", "RB_MaxDist", 50, 2000, 1000, 1, " studs")
@@ -395,25 +473,46 @@ addToggle(espS, "Team Check", "ESPTeamCheck", true)
 addColor(espS, "ESP Color", "ESPColor")
 
 --======================================================================
--- Skins page (skin changer for every gun, no hooks)
+-- Skins page (pick a skin per weapon from the game's real list, no hooks)
 --======================================================================
 local skinsPage = window:Page({ Name = "Skins" })
 local skinS     = skinsPage:Section({ Name = "Skin Changer", Side = 1 })
 
-skinS:Toggle({ Name = "Enabled (auto re-apply on spawn)", Flag = uflag(), Default = false,
-    Callback = function(v) SKIN.Enabled = v and true or false; if SKIN.Enabled then applySkins() end end })
+local weaponList = getWeaponList()
+local curWeapon  = weaponList[1]
+local skinDD                       -- forward ref so the weapon dropdown can refresh it
+
 pcall(function()
-    skinS:Textbox({ Name = "Skin Name (blank = keep current)", Flag = uflag(), Default = "", Placeholder = "e.g. Fade",
-        Callback = function(t) SKIN.SkinName = tostring(t or "") end })
+    skinS:Dropdown({ Name = "Weapon", Flag = uflag(), Items = weaponList, Default = curWeapon, Multi = false,
+        Callback = function(v)
+            if type(v) == "table" then v = v[1] end
+            if type(v) == "string" then
+                curWeapon = v
+                if skinDD then
+                    local list = skinsForWeapon(curWeapon)
+                    pcall(function() skinDD:Refresh(list) end)
+                    pcall(function() skinDD:Set(SKIN.Map[curWeapon] or list[1]) end)
+                end
+            end
+        end })
 end)
 pcall(function()
-    skinS:Slider({ Name = "Float (wear)", Flag = uflag(), Min = 0, Max = 1, Default = 0, Decimals = 100, Suffix = "",
+    skinDD = skinS:Dropdown({ Name = "Skin", Flag = uflag(), Items = skinsForWeapon(curWeapon), Default = (skinsForWeapon(curWeapon))[1], Multi = false,
+        Callback = function(v)
+            if type(v) == "table" then v = v[1] end
+            if type(v) == "string" then SKIN.Map[curWeapon] = v end
+        end })
+end)
+pcall(function()
+    skinS:Slider({ Name = "Float (wear)", Flag = uflag(), Min = 0, Max = 1, Default = 0, Decimals = 0.01, Suffix = "",
         Callback = function(v) SKIN.Float = v end })
 end)
 skinS:Toggle({ Name = "StatTrak", Flag = uflag(), Default = false, Callback = function(v) SKIN.StatTrak = v and true or false end })
-skinS:Toggle({ Name = "Auto Butterfly Knife", Flag = uflag(), Default = true, Callback = function(v) SKIN.KnifeFix = v and true or false end })
 pcall(function()
-    skinS:Button({ Name = "Apply Skins Now", Callback = function() applySkins() end })
+    skinS:Button({ Name = "Apply Skins", Callback = function() applySkins() end })
+end)
+pcall(function()
+    skinS:Button({ Name = "Clear Selections", Callback = function() SKIN.Map = {} end })
 end)
 
 pcall(function() window:Init() end)
