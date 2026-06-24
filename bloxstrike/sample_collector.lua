@@ -43,14 +43,25 @@ do
     end))
 end
 
--- find sender frame: first Lua frame with chunk @ReplicatedFirst.* (the AC impersonator)
+-- find sender frame: a Lua frame whose function holds the BAC remote in
+-- its upvalues (the AC encryptor wrapper - chunk source/name is faked).
 local function findSender()
-    for lvl = 2, 20 do
+    for lvl = 2, 25 do
         local ok, info = pcall(debug.getinfo, lvl, "slf")
-        if not ok or not info or not info.func then return nil end
-        local src = tostring(info.source or "")
-        if info.what == "Lua" and src:find("ReplicatedFirst", 1, true) then
-            return info.func, lvl, src
+        if not ok or not info then return nil end
+        if not info.func then return nil end
+        if info.what == "Lua" then
+            local okU, ups = pcall(debug.getupvalues, info.func)
+            if okU and ups then
+                for _, u in pairs(ups) do
+                    if u == remote then return info.func, lvl, tostring(info.source or "?") end
+                    if type(u) == "table" then
+                        for _, vv in pairs(u) do
+                            if vv == remote then return info.func, lvl, tostring(info.source or "?") end
+                        end
+                    end
+                end
+            end
         end
     end
 end
@@ -124,7 +135,9 @@ local old; old = hookfn(fs, newcclosure(function(self, ...)
         local a1 = (...)
         if type(a1) == "string" and #a1 > 0 then
             pcall(logBeat, a1)
-            if not dumped then task.spawn(dumpOnce) end  -- spawn so the hook returns fast
+            -- dump INLINE so the AC's stack frame is still on the call stack
+            -- (a task.spawn coroutine has its own stack and would miss it).
+            if not dumped then pcall(dumpOnce) end
         end
     end
     return old(self, ...)
