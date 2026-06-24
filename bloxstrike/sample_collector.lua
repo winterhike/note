@@ -79,9 +79,49 @@ local function dumpCaller()
                         d = d .. string.format(" [%s nparams=%d nconst=%s src=%s]",
                             tostring(fi.what), fi.numparams, okK and #ks or "?", tostring(fi.source):sub(1, 30))
                     elseif type(u) == "table" then
-                        local n = 0 local sample = ""
-                        for k, v in pairs(u) do n += 1 if n <= 3 then sample = sample .. tostring(k) .. "=" .. tostring(v):sub(1,20) .. " " end end
-                        d = d .. " [tbl#" .. n .. " " .. sample .. "]"
+                        -- full numeric dump for small int arrays (the lookup tables / state),
+                        -- key listing for hash maps, and function fingerprints for vtables.
+                        local n, allInt, sample = 0, true, {}
+                        for k, v in pairs(u) do
+                            n += 1
+                            if type(k) ~= "number" then allInt = false end
+                            if n <= 6 then
+                                sample[#sample+1] = tostring(k) .. "=" .. (
+                                    type(v) == "function" and "fn"
+                                    or type(v) == "table" and "tbl"
+                                    or type(v) == "string" and ('"' .. v:sub(1,20) .. '"')
+                                    or tostring(v)
+                                )
+                            end
+                        end
+                        d = d .. " [tbl#" .. n .. " " .. table.concat(sample, " ") .. "]"
+                        -- if it's a small int-keyed numeric table, dump every value
+                        if allInt and n <= 64 then
+                            local nums = {}
+                            local hasFns = false
+                            for k = 0, n do if u[k] ~= nil then nums[#nums+1] = tostring(k) .. "=" .. tostring(u[k]) end end
+                            for _, v in pairs(u) do if type(v) == "function" then hasFns = true; break end end
+                            if not hasFns then d = d .. "\n#       FULL: " .. table.concat(nums, ",") end
+                        end
+                        -- function-vtable: list each fn's nparams + first few constants for fingerprinting
+                        if n > 0 and n <= 64 then
+                            local fnLines = {}
+                            for k, v in pairs(u) do
+                                if type(v) == "function" then
+                                    local fi = debug.getinfo(v)
+                                    local okK, ks = pcall(debug.getconstants, v)
+                                    local cs = {}
+                                    if okK then for i = 1, math.min(#ks, 5) do
+                                        local c = ks[i]
+                                        cs[i] = type(c) == "string" and ('"' .. c:sub(1,20) .. '"') or tostring(c)
+                                    end end
+                                    fnLines[#fnLines+1] = string.format("       [%s] %s p=%d nc=%s {%s}",
+                                        tostring(k), tostring(fi.what), fi.numparams, okK and #ks or "?",
+                                        table.concat(cs, ","))
+                                end
+                            end
+                            if #fnLines > 0 then d = d .. "\n#" .. table.concat(fnLines, "\n#") end
+                        end
                     elseif type(u) == "string" then
                         d = d .. ' = "' .. u:sub(1, 50) .. '"'
                     elseif type(u) == "number" or type(u) == "boolean" then

@@ -284,3 +284,38 @@ Post-detection errors:
    so the encrypted beat never leaves -> server kicks for a MISSING beat.
    Plan: grab the finished encrypted beat off the stack (debug.getstack) before
    the crash and FireServer it ourselves.
+
+
+## Batch 4 - SENDER UPVALUES DUMPED (impersonating ReplicatedFirst.C4)
+
+name=gvvvvvvvvvvvded userid=11170579328
+
+Beats: 48251,0,fe0d57a5c28885ce627d4b6d9f / 2627,1,d84bfad...d402 /
+       48251,0,fe0d57a5c28885ce627d4b6d9f (repeats - deterministic) /
+       5947,1,382aa162...62df817
+
+### Sender frame upvalues (the encryptor's environment)
+  up1 = tbl#11 [1=96,2=84,3=96,...]   <-- INT LOOKUP A (length 11, byte values)
+  up2 = number = 9                     <-- a constant or current-state index
+  up3 = tbl#3  [1="!0!!0!!0!!0!!0!!0!"=cached output? 2=tbl 0=tbl]
+  up4 = tbl#11 [1=0,2=29,3=0,...]      <-- INT LOOKUP B (length 11)
+  up5 = tbl#4  [1=fn 2="BAC" 3="!0!!0!..." 0=tbl]   <-- BAC remote info + cached header
+  up6 = tbl#11 [1=0,2=151,3=0,...]     <-- INT LOOKUP C (length 11)
+  up7 = tbl#3  [10=true 0=tbl 4="FireServer"]       <-- "FireServer" string + remote
+  up8 = tbl#55 of FUNCTIONS            <-- VTABLE of 55 helpers (the AC core's API)
+  up9 = tbl#9  [1=2,2=97,3=3,...]      <-- another small int table
+  up10 = tbl#1 [0=tbl]
+  up11 = number = 4
+  up12 = tbl#1 [0=tbl]
+
+### Interpretation
+- The "encryption" is table-driven byte substitution / XOR using up1/up4/up6/up9
+  as small lookup tables (length 11 -> matches the digest stride patterns).
+- up3 / up5 / up7 hold cached intermediate buffers + the FireServer call binding.
+- up8 = 55 functions = the AC's modular helper set (one of which is the
+  "encrypt and FireServer" entry point we're sitting inside).
+
+### Plan
+v7: dump every numeric value of up1/up4/up6/up9 and fingerprint each fn in up8
+(nparams, nconstants, first few constants) so we can identify and CALL the
+encryptor directly - no re-derivation needed.
