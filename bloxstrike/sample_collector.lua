@@ -68,7 +68,7 @@ local function dumpCaller()
             lvl, tostring(info.what), src, tostring(info.currentline), tostring(info.name))
         pcall(function() appendfile(file, hdr .. "\n") end)
         print(hdr)
-        if info.what == "Lua" and src:find("DataController", 1, true) then
+        if info.what == "Lua" and (src:find("Controller", 1, true) or src:find("ReplicatedFirst", 1, true) or info.currentline == 1) then
             local okU, ups = pcall(debug.getupvalues, info.func)
             if okU then
                 for ui, u in pairs(ups) do

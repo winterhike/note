@@ -262,3 +262,25 @@ FireServer(C) <- ReplicatedFirst.DataController (Lua, line 1 = VIRTUALIZED)
 - Length (13 vs 19) tracks nonce/content, not seq. Likely two beat variants.
 - Still deterministic (1823,1 repeats identically).
 - seq seen so far: 1, 5, 11.
+
+
+## Batch 3 (name=KAPTOX4578-ish session) + crash confirmation
+nonce,seq,digest_hex
+3880,2,8be71e7d1e5067559393ed848542b4632d6859  (19 bytes)
+27431,1,94f2473a3d02afb14174c8da5c              (13 bytes)
+7203,2,aa21f54d381a4ddce9fde6d15275e9d72d1d59   (19 bytes)
+
+### KEY: sender chunkname ROTATES (impersonation)
+This session the beat sender's source = "ReplicatedFirst.CharacterController"
+(previously "ReplicatedFirst.DataController"). The AC fakes DIFFERENT legit
+ReplicatedFirst.* script names each time. So dump upvalues for ANY ReplicatedFirst/
+Controller frame, not a fixed name.
+
+### CRASH CONFIRMED (the "they crash after encryption" mechanism)
+Post-detection errors:
+  Luraph Script:1045: ReplicatedFirst.CharacterController:1: attempt to index nil with 'Destroy'
+  Luraph Script:1295: ReplicatedFirst.CharacterController:1: attempt to index nil with 'FireServer'
+=> On detection the AC nils its own remote and crashes at the FireServer call,
+   so the encrypted beat never leaves -> server kicks for a MISSING beat.
+   Plan: grab the finished encrypted beat off the stack (debug.getstack) before
+   the crash and FireServer it ourselves.
