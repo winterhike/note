@@ -43,24 +43,59 @@ do
     end))
 end
 
--- find sender frame: a Lua frame whose function holds the BAC remote in
--- its upvalues (the AC encryptor wrapper - chunk source/name is faked).
+-- find the AC ENCRYPTOR frame: a Lua function with many upvalues, holding the
+-- BAC remote (often nested in a table) AND at least one big int->int table
+-- (the lookup data). The earlier "first holds-remote" match grabbed the
+-- FireServer wrapper, which has 1 userdata upvalue - not what we want.
+local function looksLikeByteTable(t)
+    if type(t) ~= "table" then return false end
+    local n = 0
+    for k, v in pairs(t) do
+        n += 1
+        if type(k) ~= "number" or type(v) ~= "number" then return false end
+        if v < 0 or v > 255 or v ~= math.floor(v) then return false end
+        if n > 200 then return true end -- early-out for clearly big tables
+    end
+    return n >= 50
+end
+local function holdsRemote(ups)
+    for _, u in pairs(ups) do
+        if u == remote then return true end
+        if type(u) == "table" then
+            for _, vv in pairs(u) do if vv == remote then return true end end
+        end
+    end
+    return false
+end
+
 local function findSender()
-    for lvl = 2, 25 do
+    -- pass 1: prefer a frame with many upvalues and a byte-table (the encryptor)
+    for lvl = 2, 30 do
         local ok, info = pcall(debug.getinfo, lvl, "slf")
-        if not ok or not info then return nil end
-        if not info.func then return nil end
+        if not ok or not info then break end
+        if not info.func then break end
         if info.what == "Lua" then
             local okU, ups = pcall(debug.getupvalues, info.func)
             if okU and ups then
-                for _, u in pairs(ups) do
-                    if u == remote then return info.func, lvl, tostring(info.source or "?") end
-                    if type(u) == "table" then
-                        for _, vv in pairs(u) do
-                            if vv == remote then return info.func, lvl, tostring(info.source or "?") end
+                local nups = 0; for _ in pairs(ups) do nups += 1 end
+                if nups >= 5 and holdsRemote(ups) then
+                    for _, u in pairs(ups) do
+                        if looksLikeByteTable(u) then
+                            return info.func, lvl, tostring(info.source or "?"), "encryptor"
                         end
                     end
                 end
+            end
+        end
+    end
+    -- pass 2: any Lua frame holding the remote (last resort)
+    for lvl = 2, 30 do
+        local ok, info = pcall(debug.getinfo, lvl, "slf")
+        if not ok or not info or not info.func then break end
+        if info.what == "Lua" then
+            local okU, ups = pcall(debug.getupvalues, info.func)
+            if okU and ups and holdsRemote(ups) then
+                return info.func, lvl, tostring(info.source or "?"), "fallback"
             end
         end
     end
@@ -94,9 +129,9 @@ end
 local dumped = false
 local function dumpOnce()
     if dumped then return end; dumped = true
-    local fn, lvl, src = findSender()
+    local fn, lvl, src, why = findSender()
     if not fn then pcall(appendfile, file, "# no sender frame\n"); return end
-    pcall(appendfile, file, "\n# --- v8 sender dump ---\n# src=" .. src .. "\n")
+    pcall(appendfile, file, "\n# --- v8 sender dump ---\n# src=" .. src .. " lvl=" .. tostring(lvl) .. " match=" .. tostring(why) .. "\n")
     local okU, ups = pcall(debug.getupvalues, fn)
     if not okU then pcall(appendfile, file, "# getupvalues failed\n"); return end
 
