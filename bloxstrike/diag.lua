@@ -191,3 +191,36 @@ end
 pcall(watchKick)
 
 tlog("READY", "passive diagnostic active. play normally. rconsole window persists past kick. Logs: " .. LOGF)
+
+-- v2: PASSIVELY observe FireServer (never re-fire) to correlate with up5[8] / up3 changes.
+-- This tells us WHICH upvalue holds the beat that actually gets fired.
+do
+    local hookfn = hookfunction or replaceclosure
+    if hookfn then
+        local fs = remote.FireServer
+        local origFire
+        origFire = hookfn(fs, newcclosure(function(self, ...)
+            if self == remote then
+                local a1 = (...)
+                if type(a1) == "string" and #a1 > 0 then
+                    -- decode and log
+                    local b, j = {}, 1
+                    while j <= #a1 do
+                        local n = a1:match("^!(%d+)!", j)
+                        if n then b[#b+1] = tonumber(n); j = j + #n + 2 else b[#b+1] = a1:byte(j); j = j + 1 end
+                    end
+                    local nonce = (b[1] or 0) + (b[2] or 0) * 256
+                    local seq = b[3]
+                    local dash; for j2 = 1, #b do if b[j2] == 0x2D then dash = j2 break end end
+                    local hx = {}; if dash then for j2 = dash + 1, #b do hx[#hx+1] = string.format("%02x", b[j2]) end end
+                    tlog("FIRE", string.format("n=%d s=%s len=%d d=%s",
+                        nonce, tostring(seq), #a1, table.concat(hx):sub(1, 40)))
+                end
+            end
+            return origFire(self, ...)
+        end))
+        tlog("READY", "FireServer passive observer installed")
+    else
+        tlog("WARN", "no hookfunction - skipping FireServer observer")
+    end
+end
