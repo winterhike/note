@@ -1,138 +1,215 @@
 --[[==================================================================
-    BloxStrike BAC - heartbeat RELAY / self-driver
+    BloxStrike BAC - heartbeat emulator (yeno's technique)
     ------------------------------------------------------------------
-    Technique (per the working description):
+    "HEARTBEAT CLIENT -> GETS DTCED -> THEIR ENCRYPTION -> HOOK -> FIX
+     -> ENCRYPT -> SEND (yourself, as they crash after the encryption)"
 
-        HEARTBEAT CLIENT -> gets detected -> [encryption] -> HOOK -> fix
-        -> encrypt -> SEND (ourselves), because the AC crashes/sabotages
-        its OWN send right AFTER the encryption step. So the encrypted
-        beat is valid; it just never leaves. We grab it and send it.
+    The AC's encryption ALWAYS succeeds. The send step is what gets
+    sabotaged on detection (we observed "attempt to index nil with
+    'FireServer'" - they nil their own remote ref). So:
 
-    So we do NOT need to read the crypto. We need:
-      1) a reference to the encrypted beat as it is produced, and
-      2) to fire Remotes.BAC ourselves so the server keeps getting beats
-         even after the AC kills its own send.
+      1. Locate the encryptor closure via getgc fingerprint (24 upvalues,
+         holds BAC remote, has big byte-table upvalues).
+      2. Hook FireServer (only point the encrypted beat exists in clear).
+         Use debug.getstack(2) on the encryptor's frame to mirror its
+         in-flight registers (the actual stack technique pubmain pointed at).
+      3. Cache every captured beat + the AC's own up3 cache (its 5 most
+         recent per-channel encrypted beats).
+      4. Watchdog: if no beat for >1.5s (AC pipeline crashed), replay
+         from cache - cycling through up3 channels for variety.
 
-    Two capture modes:
-      * SEND-HOOK (default): hook the BAC RemoteEvent's FireServer via
-        __namecall. Every beat the AC sends, we record the exact encrypted
-        string + (via debug.info) the calling sender function. From the
-        sender's upvalues we recover the encryptor fn + state table, so we
-        can keep minting/relaying beats even once the AC goes silent.
-      * RELAY: a heartbeat loop that re-fires the freshest captured beat if
-        the AC stops sending (detection window), keeping the server happy.
-
-    NOTE: this DOES hook (__namecall). That is intended here - it is the
-    only point the finished encrypted beat exists outside the AC. Keep the
-    hook minimal and only act on the BAC remote so unrelated namecalls are
-    untouched.
+    We don't decrypt anything. We let the AC encrypt, then send its
+    output past its broken send pipeline.
 ==================================================================--]]
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService        = game:GetService("RunService")
+local lp                = Players.LocalPlayer
 
 local Relay = {}
 
-local function findBac()
-    local r = ReplicatedStorage:FindFirstChild("Remotes")
-    r = r and r:FindFirstChild("BAC")
-    if r and r:IsA("RemoteEvent") then return r end
+--==================================================================
+-- 1. Find BAC remote
+--==================================================================
+local remote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("BAC")
+if not remote then
     for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
-        if d.Name == "BAC" and d:IsA("RemoteEvent") then return d end
+        if d.Name == "BAC" and d:IsA("RemoteEvent") then remote = d break end
     end
 end
-
--- shared captured state (persist across re-runs in a session)
-local S = getgenv()._BAC_RELAY or {
-    remote = nil,
-    lastBeat = nil,      -- freshest encrypted string the AC produced
-    lastBeatAt = 0,      -- os.clock() of last genuine beat
-    sender = nil,        -- the AC function that called FireServer
-    senderSrc = nil,     -- debug source of that function
-    encryptor = nil,     -- recovered encryptor fn (if found in sender upvalues)
-    stateTbl = nil,      -- recovered state table (nonce/seq), if any
-    beats = 0,
-    installed = false,
-    relayOn = false,
-}
-getgenv()._BAC_RELAY = S
+assert(remote, "[BAC relay] no BAC RemoteEvent found")
 
 --==================================================================
--- 1. SEND-HOOK: capture the encrypted beat + the sender function
+-- 2. Locate the encryptor closure (one getgc pass, fingerprinted)
 --==================================================================
-function Relay.installCapture()
-    if S.installed then return true, "already installed" end
-    local remote = findBac()
-    if not remote then return false, "no BAC remote" end
-    S.remote = remote
-    if typeof(hookmetamethod) ~= "function" then return false, "no hookmetamethod" end
+local function isByteTable(t)
+    if type(t) ~= "table" then return false end
+    local n = 0
+    for k, v in pairs(t) do
+        if type(k) ~= "number" or type(v) ~= "number" then return false end
+        if v < 0 or v > 255 or v ~= math.floor(v) then return false end
+        n += 1
+        if n >= 200 then return true end
+    end
+    return false
+end
+local function holdsRemote(ups)
+    for _, u in pairs(ups) do
+        if u == remote then return true end
+        if type(u) == "table" then
+            for _, vv in pairs(u) do if vv == remote then return true end end
+        end
+    end
+    return false
+end
 
-    local mt = getrawmetatable(game)
-    local oldNamecall = mt.__namecall
-    -- prefer hookmetamethod (clean restore); fall back to raw if needed
-    local ok = pcall(function()
-        S._old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-            if self == S.remote then
-                local method = getnamecallmethod and getnamecallmethod() or ""
-                if method == "FireServer" then
-                    local arg1 = (...)
-                    if type(arg1) == "string" and #arg1 > 0 then
-                        S.lastBeat = arg1
-                        S.lastBeatAt = os.clock()
-                        S.beats += 1
-                        if not S.sender then
-                            -- the AC function that called FireServer is at stack level 2
-                            local okI, info = pcall(debug.getinfo, 2)
-                            if okI and info then S.senderSrc = tostring(info.source) end
-                        end
-                    end
+local encryptor
+do
+    local best, bestScore = nil, -1
+    for _, v in ipairs(getgc(true)) do
+        if type(v) == "function" then
+            local okU, ups = pcall(debug.getupvalues, v)
+            if okU and ups then
+                local nups = 0; for _ in pairs(ups) do nups += 1 end
+                if nups >= 5 and holdsRemote(ups) then
+                    local big = 0
+                    for _, u in pairs(ups) do if isByteTable(u) then big += 1 end end
+                    local score = big * 1000 + nups
+                    if score > bestScore then bestScore = score; best = v end
                 end
             end
-            return S._old(self, ...)
-        end))
-    end)
-    if not ok then return false, "hook failed" end
-    S.installed = true
-    return true
-end
-
---==================================================================
--- 2. RELAY: keep the beat alive. If the AC has not sent a beat within
---    `gap` seconds (it crashed/sabotaged after detection), re-fire the
---    freshest beat ourselves so the server keeps receiving heartbeats.
---==================================================================
-function Relay.startRelay(gap)
-    gap = gap or 1.5
-    if S.relayOn then return end
-    S.relayOn = true
-    task.spawn(function()
-        while S.relayOn do
-            if S.remote and S.lastBeat and (os.clock() - S.lastBeatAt) > gap then
-                -- AC went silent -> keep the server fed with the last valid beat
-                pcall(function() S.remote:FireServer(S.lastBeat) end)
-                -- bump the timer so we don't spam every frame
-                S.lastBeatAt = os.clock()
-            end
-            task.wait(gap / 2)
         end
-    end)
+    end
+    encryptor = best
+    if best then print(string.format("[BAC relay] encryptor located (score=%d)", bestScore))
+    else warn("[BAC relay] encryptor NOT found - falling back to FireServer-only capture") end
 end
-
-function Relay.stopRelay() S.relayOn = false end
+Relay.encryptor = encryptor
 
 --==================================================================
--- status / report
+-- 3. Read AC's own per-channel cached beats from encryptor upvalues
+--==================================================================
+local function readCachedBeats()
+    if not encryptor then return {} end
+    local ok, ups = pcall(debug.getupvalues, encryptor)
+    if not ok then return {} end
+    local beats, seen = {}, {}
+    for _, u in pairs(ups) do
+        if type(u) == "table" then
+            for _, v in pairs(u) do
+                if type(v) == "string" and #v >= 8 and v:find("!0!!0!!0!!0!", 1, true) and not seen[v] then
+                    seen[v] = true
+                    beats[#beats + 1] = v
+                end
+            end
+        end
+    end
+    return beats
+end
+Relay.readCachedBeats = readCachedBeats
+
+--==================================================================
+-- 4. Hook FireServer to capture beats. Uses debug.getstack(2) on the
+--    encryptor's stack frame to mirror its in-flight state (the actual
+--    "stack" technique - works because at FireServer-call time the
+--    encryptor IS at level 2).
+--==================================================================
+local lastBeat, lastBeatTime
+local stackDumped = false
+local capturedBeats = 0
+
+local hookfn = hookfunction or replaceclosure
+local fs = remote.FireServer
+local origFire
+origFire = hookfn(fs, newcclosure(function(self, ...)
+    if self == remote then
+        local a1 = (...)
+        if type(a1) == "string" and #a1 > 0 then
+            lastBeat = a1
+            lastBeatTime = os.clock()
+            capturedBeats += 1
+
+            -- one-shot: dump encryptor's stack registers via debug.getstack(2)
+            -- so we can see exactly which slot holds the encrypted beat string
+            -- + the nonce/seq counters. This is the "use stack" hint from the thread.
+            if not stackDumped then
+                stackDumped = true
+                local out = {
+                    "-- encryptor stack at FireServer call (level 2)",
+                    "-- name=" .. lp.Name .. " uid=" .. lp.UserId,
+                    "",
+                }
+                for slot = 1, 64 do
+                    local ok, val = pcall(debug.getstack, 2, slot)
+                    if not ok then break end
+                    local desc
+                    local t = type(val)
+                    if t == "string" then
+                        desc = '"' .. val:sub(1, 60):gsub("[^%w%p ]", "?") .. '"'
+                    elseif t == "table" then
+                        local n = 0; for _ in pairs(val) do n += 1 end
+                        desc = "table#" .. n
+                    elseif t == "function" then
+                        desc = "fn"
+                    elseif t == "userdata" then
+                        desc = "userdata"
+                    else
+                        desc = tostring(val)
+                    end
+                    out[#out + 1] = string.format("-- [%d] %s = %s", slot, t, desc)
+                end
+                pcall(writefile, "bac_encryptor_stack.lua", table.concat(out, "\n"))
+            end
+        end
+    end
+    return origFire(self, ...)
+end))
+
+--==================================================================
+-- 5. Watchdog: when AC's send pipeline crashes (no beat in >1.5s),
+--    replay cached beats - cycle through up3's channels for variety.
+--==================================================================
+local relayed = 0
+task.spawn(function()
+    local cycle = 0
+    while true do
+        task.wait(0.4)
+        if lastBeatTime and (os.clock() - lastBeatTime) > 1.5 then
+            local cached = readCachedBeats()
+            local pkt
+            if #cached > 0 then
+                cycle = (cycle % #cached) + 1
+                pkt = cached[cycle]
+            else
+                pkt = lastBeat
+            end
+            if pkt then
+                local ok = pcall(function() remote:FireServer(pkt) end)
+                if ok then
+                    relayed += 1
+                    lastBeatTime = os.clock()
+                end
+            end
+        end
+    end
+end)
+
+--==================================================================
+-- 6. Status API
 --==================================================================
 function Relay.status()
     return {
-        installed = S.installed,
-        beats = S.beats,
-        hasBeat = S.lastBeat ~= nil,
-        senderSrc = S.senderSrc,
-        sinceLast = S.lastBeat and (os.clock() - S.lastBeatAt) or nil,
+        encryptor = encryptor ~= nil,
+        captured  = capturedBeats,
+        relayed   = relayed,
+        cached    = #readCachedBeats(),
+        secsSinceLastBeat = lastBeatTime and (os.clock() - lastBeatTime) or nil,
     }
 end
 
-Relay.S = S
+getgenv().BAC_RELAY = Relay
+
+print("[BAC relay] armed. encryptor=" .. tostring(encryptor ~= nil)
+    .. ". hook=FireServer. watchdog=1.5s gap. status: getgenv().BAC_RELAY.status()")
+
 return Relay
