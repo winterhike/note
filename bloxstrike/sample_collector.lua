@@ -1,11 +1,7 @@
---[[ BAC beat collector v3 - hook the FireServer FUNCTION (not __namecall).
-     The beats are sent via a direct FireServer function call, NOT a `:method`
-     namecall, so a __namecall hook never sees them (that's why the file was
-     header-only). This hooks remote.FireServer itself - the exact mechanism
-     that captured beats in the first place - and also installs the FakeIndex
-     namecall canary so it survives BAC's probe.
-
-     Run it, play a round, send me bac_beats.txt. One account/session only.
+--[[ BAC v8 - SURGICAL dump: write the encryptor's tables (up1/up4/up6/up9 +
+     the named Lua fn constants in up8) to workspace files in Lua-loadable form,
+     so we can replay the algorithm offline. Fast: dumps once on first beat,
+     then exits the hook quickly.
 ]]
 
 local Players           = game:GetService("Players")
@@ -24,7 +20,6 @@ local file = "bac_beats.txt"
 pcall(writefile, file, string.format("# name=%s userid=%d f2=%d f4=%d\n# nonce_dec,seq,digest_hex\n",
     lp.Name, lp.UserId, lp.UserId * 2, lp.UserId * 4))
 
-local count = 0
 local function logBeat(s)
     local b, i = {}, 1
     while i <= #s do
@@ -33,20 +28,14 @@ local function logBeat(s)
     end
     local nonce = (b[1] or 0) + (b[2] or 0) * 256
     local seq = b[3]
-    local dash
-    for j = 1, #b do if b[j] == 0x2D then dash = j break end end
-    local hx = {}
-    if dash then for j = dash + 1, #b do hx[#hx+1] = string.format("%02x", b[j]) end end
-    local line = string.format("%d,%s,%s", nonce, tostring(seq), table.concat(hx))
-    count += 1
-    print("[beat " .. count .. "] " .. line)
-    pcall(appendfile, file, line .. "\n")
+    local dash; for j = 1, #b do if b[j] == 0x2D then dash = j break end end
+    local hx = {}; if dash then for j = dash + 1, #b do hx[#hx+1] = string.format("%02x", b[j]) end end
+    pcall(appendfile, file, string.format("%d,%s,%s\n", nonce, tostring(seq), table.concat(hx)))
 end
 
--- 1) FakeIndex canary so the hook survives BAC's namecall probe
+-- FakeIndex canary
 do
-    local Old
-    Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local Old; Old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
         if getnamecallmethod() == "FakeIndex" then
             return false, 'FakeIndex is not a valid member of DataModel "Ugc"'
         end
@@ -54,100 +43,91 @@ do
     end))
 end
 
--- 2) hook the FireServer FUNCTION (this is where the beat actually goes)
-local dumped = false
-local function dumpCaller()
-    pcall(function() appendfile(file, "\n# --- sender dump ---\n") end)
-    -- scan all stack frames; dump upvalues of any Lua function whose source is
-    -- the AC sender (ReplicatedFirst.DataController) - that holds the encryptor.
+-- find sender frame: first Lua frame with chunk @ReplicatedFirst.* (the AC impersonator)
+local function findSender()
     for lvl = 2, 20 do
-        local ok, info = pcall(debug.getinfo, lvl, "slnf")
-        if not ok or not info or not info.func then break end
-        local src = tostring(info.source)
-        local hdr = string.format("# L%d what=%s src=%s line=%s name=%s",
-            lvl, tostring(info.what), src, tostring(info.currentline), tostring(info.name))
-        pcall(function() appendfile(file, hdr .. "\n") end)
-        print(hdr)
-        if info.what == "Lua" and (src:find("Controller", 1, true) or src:find("ReplicatedFirst", 1, true) or info.currentline == 1) then
-            local okU, ups = pcall(debug.getupvalues, info.func)
-            if okU then
-                for ui, u in pairs(ups) do
-                    local d = "#    up" .. ui .. " = " .. typeof(u)
-                    if type(u) == "function" then
-                        local fi = debug.getinfo(u)
-                        local okK, ks = pcall(debug.getconstants, u)
-                        d = d .. string.format(" [%s nparams=%d nconst=%s src=%s]",
-                            tostring(fi.what), fi.numparams, okK and #ks or "?", tostring(fi.source):sub(1, 30))
-                    elseif type(u) == "table" then
-                        -- full numeric dump for small int arrays (the lookup tables / state),
-                        -- key listing for hash maps, and function fingerprints for vtables.
-                        local n, allInt, sample = 0, true, {}
-                        for k, v in pairs(u) do
-                            n += 1
-                            if type(k) ~= "number" then allInt = false end
-                            if n <= 6 then
-                                sample[#sample+1] = tostring(k) .. "=" .. (
-                                    type(v) == "function" and "fn"
-                                    or type(v) == "table" and "tbl"
-                                    or type(v) == "string" and ('"' .. v:sub(1,20) .. '"')
-                                    or tostring(v)
-                                )
-                            end
-                        end
-                        d = d .. " [tbl#" .. n .. " " .. table.concat(sample, " ") .. "]"
-                        -- if it's a small int-keyed numeric table, dump every value
-                        if allInt and n <= 64 then
-                            local nums = {}
-                            local hasFns = false
-                            for k = 0, n do if u[k] ~= nil then nums[#nums+1] = tostring(k) .. "=" .. tostring(u[k]) end end
-                            for _, v in pairs(u) do if type(v) == "function" then hasFns = true; break end end
-                            if not hasFns then d = d .. "\n#       FULL: " .. table.concat(nums, ",") end
-                        end
-                        -- function-vtable: list each fn's nparams + first few constants for fingerprinting
-                        if n > 0 and n <= 64 then
-                            local fnLines = {}
-                            for k, v in pairs(u) do
-                                if type(v) == "function" then
-                                    local fi = debug.getinfo(v)
-                                    local okK, ks = pcall(debug.getconstants, v)
-                                    local cs = {}
-                                    if okK then for i = 1, math.min(#ks, 5) do
-                                        local c = ks[i]
-                                        cs[i] = type(c) == "string" and ('"' .. c:sub(1,20) .. '"') or tostring(c)
-                                    end end
-                                    fnLines[#fnLines+1] = string.format("       [%s] %s p=%d nc=%s {%s}",
-                                        tostring(k), tostring(fi.what), fi.numparams, okK and #ks or "?",
-                                        table.concat(cs, ","))
-                                end
-                            end
-                            if #fnLines > 0 then d = d .. "\n#" .. table.concat(fnLines, "\n#") end
-                        end
-                    elseif type(u) == "string" then
-                        d = d .. ' = "' .. u:sub(1, 50) .. '"'
-                    elseif type(u) == "number" or type(u) == "boolean" then
-                        d = d .. " = " .. tostring(u)
-                    end
-                    pcall(function() appendfile(file, d .. "\n") end)
-                    print(d)
-                end
-            end
+        local ok, info = pcall(debug.getinfo, lvl, "slf")
+        if not ok or not info or not info.func then return nil end
+        local src = tostring(info.source or "")
+        if info.what == "Lua" and src:find("ReplicatedFirst", 1, true) then
+            return info.func, lvl, src
         end
     end
-    pcall(function() appendfile(file, "# --- end sender dump ---\n") end)
+end
+
+local function tableHash(t)
+    local n = 0; for _ in pairs(t) do n += 1 end; return n
+end
+
+-- serialize a small int->int|str|bool table as Lua source
+local function serial(t, name)
+    local parts = { "local " .. name .. " = {" }
+    local keys = {}; for k in pairs(t) do keys[#keys+1] = k end
+    table.sort(keys, function(a,b) return tostring(a) < tostring(b) end)
+    for _, k in ipairs(keys) do
+        local v = t[k]
+        local kr = type(k) == "number" and ("[" .. k .. "]") or ("[" .. string.format("%q", tostring(k)) .. "]")
+        local vr
+        if type(v) == "number" or type(v) == "boolean" then vr = tostring(v)
+        elseif type(v) == "string" then vr = string.format("%q", v)
+        elseif type(v) == "function" then vr = "nil --[[function]]"
+        elseif type(v) == "table" then vr = "nil --[[table]]"
+        else vr = "nil"
+        end
+        parts[#parts+1] = "  " .. kr .. " = " .. vr .. ","
+    end
+    parts[#parts+1] = "}"
+    return table.concat(parts, "\n")
+end
+
+local dumped = false
+local function dumpOnce()
+    if dumped then return end; dumped = true
+    local fn, lvl, src = findSender()
+    if not fn then pcall(appendfile, file, "# no sender frame\n"); return end
+    pcall(appendfile, file, "\n# --- v8 sender dump ---\n# src=" .. src .. "\n")
+    local okU, ups = pcall(debug.getupvalues, fn)
+    if not okU then pcall(appendfile, file, "# getupvalues failed\n"); return end
+
+    -- write each upvalue's identity
+    local meta = { "-- name=" .. lp.Name .. " uid=" .. lp.UserId, "-- src=" .. src, "" }
+    for i, u in pairs(ups) do
+        local t = type(u)
+        if t == "table" then
+            local n = tableHash(u)
+            -- check if "all int values" (lookup table)
+            local allIntV = true
+            for _, v in pairs(u) do if type(v) ~= "number" or v ~= math.floor(v) or v < 0 or v > 255 then allIntV = false; break end end
+            meta[#meta+1] = string.format("-- up%d = table #%d %s", i, n, allIntV and "(byte array)" or "(mixed)")
+            if allIntV and n > 0 then
+                pcall(writefile, "bac_up" .. i .. ".lua", serial(u, "BAC_UP" .. i))
+                meta[#meta+1] = "--   -> bac_up" .. i .. ".lua"
+            elseif n <= 64 then
+                pcall(writefile, "bac_up" .. i .. ".lua", serial(u, "BAC_UP" .. i))
+                meta[#meta+1] = "--   -> bac_up" .. i .. ".lua (small)"
+            end
+        elseif t == "number" or t == "string" or t == "boolean" then
+            meta[#meta+1] = string.format("-- up%d = %s = %s", i, t, tostring(u):sub(1, 80))
+        else
+            meta[#meta+1] = string.format("-- up%d = %s", i, t)
+        end
+    end
+    pcall(writefile, "bac_dump.lua", table.concat(meta, "\n"))
+    pcall(appendfile, file, "# wrote bac_dump.lua + bac_up*.lua to workspace\n")
+    print("[BAC] v8 dump written: bac_dump.lua + bac_up*.lua")
 end
 
 local hookfn = hookfunction or replaceclosure
 local fs = remote.FireServer
-local old
-old = hookfn(fs, newcclosure(function(self, ...)
+local old; old = hookfn(fs, newcclosure(function(self, ...)
     if self == remote then
         local a1 = (...)
         if type(a1) == "string" and #a1 > 0 then
             pcall(logBeat, a1)
-            if not dumped then dumped = true; pcall(dumpCaller) end
+            if not dumped then task.spawn(dumpOnce) end  -- spawn so the hook returns fast
         end
     end
     return old(self, ...)
 end))
 
-print("[BAC] collector v5 armed (FireServer hook + sender upvalue dump). Play; beats -> " .. file)
+print("[BAC] v8 collector armed (surgical dump). beats -> " .. file)

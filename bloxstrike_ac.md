@@ -319,3 +319,49 @@ Beats: 48251,0,fe0d57a5c28885ce627d4b6d9f / 2627,1,d84bfad...d402 /
 v7: dump every numeric value of up1/up4/up6/up9 and fingerprint each fn in up8
 (nparams, nconstants, first few constants) so we can identify and CALL the
 encryptor directly - no re-derivation needed.
+
+
+## Batch 5 - FULL v7 dump decoded (impersonating ReplicatedFirst.RobloxCore)
+
+name=gzucdshsudc uid=11170596718
+
+### Identity is plaintext in upvalues
+  up3[1] = "gzucdshsudc"        (Name)
+  up5[1/2] = "gzucdshsudc"      (Name x2)
+  up5[3] = 11170596718          (UserId)
+  up5[4/5] = true               (flags)
+
+### Service / string interning
+  up3[5] = ContentProvider
+  up10 hashmap: 363="debug" 453="getfenv" 20="defer" 499="pcall" 618="coroutine"
+                536="Connected" - the AC's symbol cache
+  up7[43] = "attempt to call a RB"
+
+### Detection vector confirmed (Luraph traceback parser)
+  up3[9/24/27/29/31] are all Lua p=0 nc=6 with constants:
+    {1, "string", ":(%d+)[:]", "Luraph Script:", "(internal)"}
+  -> these match Luau errors against "Luraph Script:" + ":<line>:" to detect
+     hook-induced exceptions in tracebacks. SAME SIGNATURE in 5 different fns
+     means tamper-detection is sprayed across the AC.
+
+### up8 = 55-fn vtable (the AC's command table)
+Lua entries identified:
+  [27] p=4 nc=8 {1,2,3,4,5}     <-- prime FireServer-wrapper candidate
+  [31] p=3 nc=1 {1}
+  [42] {"yi"}      [43] {"fi",7779,-2}    [45] {333,"pi",105,219,2}
+  [46] {"Ji",-2}   [47] {"di",-2}         [48] {0,36,"Wi",51}
+  [49] {68,"Ai","ji",40551,128}           [50] {"Li",-2}
+  [53] {"li",-2}   [54] {"wi"}            [55] {"Pi"}
+  [56] {"#",0}     [57] p=2 nc=0          [58] {"Yi","zi","WJ",-1,-2}
+The "*i"/"*J" ids are the obfuscator's opcode names (Luraph naming).
+
+### up1/up4/up6/up9 are HUGE int arrays
+  up1 #783, up4 #681, up6 #747, up9 #713 (~3000 bytes total)
+  These are the obfuscator's data segment - either the encoded bytecode,
+  precomputed S-boxes/permutations, or the constant pool. Need full numeric
+  contents to reconstruct the routine.
+
+### Detection-window note
+The v7 console-print of all 55 fn fingerprints was probably what tipped over
+the kick window (huge stdout block). v8 fixes this: writes upvalues to files
+silently, dumps once, returns from the hook fast.
